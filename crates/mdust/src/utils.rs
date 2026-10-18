@@ -1,4 +1,5 @@
-use crate::tables::{ENTITY_BLOB, ENTITY_INDEX, PUNCT_RANGES};
+use crate::prelude::*;
+use crate::tables::{ENTITY_BLOB, ENTITY_CHECKPOINTS, ENTITY_LENS, PUNCT_RANGES};
 
 #[inline]
 pub fn is_space(c: u8) -> bool {
@@ -143,21 +144,30 @@ pub fn needs_normalize(b: &[u8]) -> bool {
 }
 
 pub fn lookup_entity(name: &str) -> Option<&'static str> {
-    let mut lo = 0usize;
-    let mut hi = ENTITY_INDEX.len();
+    let first_name = |k: usize| {
+        let off = ENTITY_CHECKPOINTS[k] as usize;
+        &ENTITY_BLOB[off..off + (ENTITY_LENS[k * 16] >> 3) as usize]
+    };
+    let (mut lo, mut hi) = (0usize, ENTITY_CHECKPOINTS.len());
     while lo < hi {
         let mid = (lo + hi) / 2;
-        let (off, nl, vl) = ENTITY_INDEX[mid];
-        let off = off as usize;
-        let n = &ENTITY_BLOB[off..off + nl as usize];
-        match n.cmp(name) {
-            std::cmp::Ordering::Less => lo = mid + 1,
-            std::cmp::Ordering::Greater => hi = mid,
-            std::cmp::Ordering::Equal => {
-                let v = off + nl as usize;
-                return Some(&ENTITY_BLOB[v..v + vl as usize]);
-            }
+        if first_name(mid) <= name {
+            lo = mid + 1;
+        } else {
+            hi = mid;
         }
+    }
+    if lo == 0 {
+        return None;
+    }
+    let k = lo - 1;
+    let mut off = ENTITY_CHECKPOINTS[k] as usize;
+    for &l in &ENTITY_LENS[k * 16..(k * 16 + 16).min(ENTITY_LENS.len())] {
+        let (nl, vl) = ((l >> 3) as usize, (l & 7) as usize);
+        if &ENTITY_BLOB[off..off + nl] == name {
+            return Some(&ENTITY_BLOB[off + nl..off + nl + vl]);
+        }
+        off += nl + vl;
     }
     None
 }
@@ -341,7 +351,7 @@ pub fn inline_entity(b: &[u8], out: &mut String) -> Option<usize> {
             }
             return None;
         }
-        let digits = std::str::from_utf8(&b[start..i]).unwrap();
+        let digits = core::str::from_utf8(&b[start..i]).unwrap();
         let code = parse_num(digits, hex) as u32;
         if is_valid_entity_code(code) {
             push_code_point(out, code);
@@ -355,7 +365,7 @@ pub fn inline_entity(b: &[u8], out: &mut String) -> Option<usize> {
         return None;
     }
     let n = match_entity_ref(b)?;
-    let name = std::str::from_utf8(&b[1..1 + n]).unwrap();
+    let name = core::str::from_utf8(&b[1..1 + n]).unwrap();
     let v = lookup_entity(name)?;
     out.push_str(v);
     Some(n + 2)
@@ -387,7 +397,7 @@ pub fn normalize_reference(s: &str) -> String {
 #[derive(Default, Clone, Copy)]
 pub struct FxHasher(u64);
 
-impl std::hash::Hasher for FxHasher {
+impl core::hash::Hasher for FxHasher {
     #[inline]
     fn write(&mut self, bytes: &[u8]) {
         for chunk in bytes.chunks(8) {
@@ -415,4 +425,18 @@ impl FxHasher {
     }
 }
 
-pub type FxMap<K, V> = std::collections::HashMap<K, V, std::hash::BuildHasherDefault<FxHasher>>;
+pub type FxMap<K, V> = hashbrown::HashMap<K, V, core::hash::BuildHasherDefault<FxHasher>>;
+
+pub fn push_uint(out: &mut String, mut n: u64) {
+    let mut buf = [0u8; 20];
+    let mut i = buf.len();
+    loop {
+        i -= 1;
+        buf[i] = b'0' + (n % 10) as u8;
+        n /= 10;
+        if n == 0 {
+            break;
+        }
+    }
+    out.push_str(core::str::from_utf8(&buf[i..]).unwrap_or_default());
+}

@@ -9,4 +9,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 mdust = { path = "../mdust" }
-wasm-bindgen = "=0.2.100"
+wasm-bindgen = { version = "=0.2.100", default-features = false }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+dlmalloc = { version = "=0.2.14", features = ["global"] }

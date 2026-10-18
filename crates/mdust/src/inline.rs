@@ -1,4 +1,5 @@
 //! Inline tokenizer, a port of markdown-it's ParserInline, its rules and post-processing.
+use crate::prelude::*;
 
 use crate::block::Reference;
 use crate::html::open_close_tag;
@@ -119,11 +120,11 @@ impl<'a> Inline<'a> {
     }
 
     pub fn parse_with(src: &'a str, refs: &'a Refs, scratch: &mut Scratch) -> Self {
-        let mut tokens = std::mem::take(&mut scratch.tokens);
+        let mut tokens = core::mem::take(&mut scratch.tokens);
         tokens.clear();
-        let mut arena = std::mem::take(&mut scratch.arena);
+        let mut arena = core::mem::take(&mut scratch.arena);
         arena.clear();
-        let mut lists = std::mem::take(&mut scratch.lists);
+        let mut lists = core::mem::take(&mut scratch.lists);
         lists.truncate(1);
         match lists.first_mut() {
             Some(l) => l.clear(),
@@ -770,7 +771,7 @@ impl<'a> Inline<'a> {
         let full = if is_autolink(url) {
             normalize_link(url)
         } else if is_email(url) {
-            normalize_link(&format!("mailto:{url}"))
+            normalize_link(&["mailto:", url].concat())
         } else {
             return false;
         };
@@ -851,7 +852,7 @@ impl<'a> Inline<'a> {
             return false;
         }
         let a = self.arena.len();
-        let mut tmp = std::mem::take(&mut self.arena);
+        let mut tmp = core::mem::take(&mut self.arena);
         let r = inline_entity(&self.s[pos..], &mut tmp);
         self.arena = tmp;
         let Some(n) = r else { return false };

@@ -1,8 +1,9 @@
 //! HTML output, a port of markdown-it's Renderer default rules.
+use crate::prelude::*;
 
 use crate::block::{Blocks, Kind};
 use crate::inline::{IKind, Inline, Scratch};
-use crate::utils::{escape_html_into, is_js_space, js_trim, unescape_all};
+use crate::utils::{escape_html_into, push_uint, is_js_space, js_trim, unescape_all};
 
 pub fn render(blocks: &Blocks, out: &mut String) {
     let toks = &blocks.tokens;
@@ -43,7 +44,7 @@ pub fn render(blocks: &Blocks, out: &mut String) {
                 match t.kind {
                     Kind::OrderedListOpen(n) if n != 1 => {
                         out.push_str(" start=\"");
-                        out.push_str(&n.to_string());
+                        push_uint(out, n as u64);
                         out.push('"');
                     }
                     Kind::ThOpen(a) | Kind::TdOpen(a) if a != 0 => {

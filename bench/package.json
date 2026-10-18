@@ -12,6 +12,6 @@
     "conformance": "node conformance.mjs",
     "fuzz": "node fuzz.mjs",
     "bench": "node run.mjs",
-    "build:mdust": "cd .. && cargo build --release -p mdust-wasm --target wasm32-unknown-unknown && wasm-bindgen --target nodejs --out-dir crates/mdust-wasm/pkg target/wasm32-unknown-unknown/release/mdust_wasm.wasm && echo '{\"type\":\"commonjs\"}' > crates/mdust-wasm/pkg/package.json"
+    "build:mdust": "cd .. && cargo build --profile wasm -p mdust-wasm --target wasm32-unknown-unknown && wasm-bindgen --target nodejs --out-dir crates/mdust-wasm/pkg target/wasm32-unknown-unknown/wasm/mdust_wasm.wasm && echo '{\"type\":\"commonjs\"}' > crates/mdust-wasm/pkg/package.json"
   }
 }

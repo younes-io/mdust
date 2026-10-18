@@ -1,3 +1,14 @@
+#![no_std]
+extern crate alloc;
+
+mod prelude {
+    pub use alloc::string::{String, ToString};
+    pub use alloc::vec::Vec;
+    pub use alloc::vec;
+}
+
+use prelude::*;
+
 mod block;
 mod html;
 mod inline;

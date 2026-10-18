@@ -1,4 +1,5 @@
 //! Block-level tokenizer, a port of markdown-it's ParserBlock and its rules.
+use crate::prelude::*;
 
 use crate::html;
 use crate::links::{parse_link_destination, parse_link_title};
@@ -1320,7 +1321,7 @@ impl<'a> State<'a> {
     }
 }
 
-fn trim_edge_columns(columns: &mut Vec<std::borrow::Cow<'_, str>>) {
+fn trim_edge_columns(columns: &mut Vec<alloc::borrow::Cow<'_, str>>) {
     if !columns.is_empty() && columns[0].is_empty() {
         columns.remove(0);
     }
@@ -1329,8 +1330,8 @@ fn trim_edge_columns(columns: &mut Vec<std::borrow::Cow<'_, str>>) {
     }
 }
 
-fn escaped_split(s: &str) -> Vec<std::borrow::Cow<'_, str>> {
-    use std::borrow::Cow;
+fn escaped_split(s: &str) -> Vec<alloc::borrow::Cow<'_, str>> {
+    use alloc::borrow::Cow;
     let b = s.as_bytes();
     let mut result: Vec<Cow<str>> = Vec::new();
     let mut is_escaped = false;
@@ -1342,7 +1343,7 @@ fn escaped_split(s: &str) -> Vec<std::borrow::Cow<'_, str>> {
             if !is_escaped {
                 if has_current {
                     current.push_str(&s[last..pos]);
-                    result.push(Cow::Owned(std::mem::take(&mut current)));
+                    result.push(Cow::Owned(core::mem::take(&mut current)));
                     has_current = false;
                 } else {
                     result.push(Cow::Borrowed(&s[last..pos]));

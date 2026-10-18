@@ -1,4 +1,5 @@
 //! Ports of markdown-it's `parseLinkDestination` and `parseLinkTitle`.
+use crate::prelude::*;
 
 use crate::utils::unescape_all_into;
 

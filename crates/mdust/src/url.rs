@@ -1,5 +1,6 @@
 //! Ports of `mdurl` (parse/format/encode/decode), `punycode.js`, and markdown-it's
 //! `normalizeLink`, `normalizeLinkText` and `validateLink`.
+use crate::prelude::*;
 
 use crate::utils::js_trim;
 
@@ -485,7 +486,7 @@ fn to_ascii(s: &str) -> Option<String> {
         if l.is_ascii() {
             Some(l.to_string())
         } else {
-            puny_encode(l).map(|e| format!("xn--{e}"))
+            puny_encode(l).map(|e| ["xn--", &e].concat())
         }
     })
 }
