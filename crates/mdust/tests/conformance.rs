@@ -139,3 +139,21 @@ fn regressions() {
         assert_eq!(&mdust::render(src), expected, "input {src:?}");
     }
 }
+
+/// CR and NUL are normalized before parsing; the line indexer reports them
+/// instead of a separate scan, so each position they can sit in is covered:
+/// mid-line, after the last newline, inside leading whitespace, alone.
+#[test]
+fn cr_and_nul_normalize_like_markdown_it() {
+    let cases: &[(&str, &str)] = &[
+        ("a\r\nb\0c\n", "<p>a\nb\u{FFFD}c</p>\n"),
+        ("# h\r\n\r\n> q\rz", "<h1>h</h1>\n<blockquote>\n<p>q\nz</p>\n</blockquote>\n"),
+        ("\0", "<p>\u{FFFD}</p>\n"),
+        ("x\r", "<p>x</p>\n"),
+        ("  \r\n\ttab\0\r\n", "<pre><code>tab\u{FFFD}\n</code></pre>\n"),
+        ("\r\n\r\n- a\r\n- b", "<ul>\n<li>a</li>\n<li>b</li>\n</ul>\n"),
+    ];
+    for (src, expected) in cases {
+        assert_eq!(&mdust::render(src), expected, "input {src:?}");
+    }
+}

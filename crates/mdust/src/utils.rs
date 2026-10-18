@@ -171,7 +171,6 @@ pub fn escape_html_into(out: &mut String, s: &str) {
     out.push_str(&s[last..]);
 }
 
-/// Whether the input needs markdown-it's `\r` and NUL normalization.
 pub fn lookup_entity(name: &str) -> Option<&'static str> {
     let first_name = |k: usize| {
         let off = ENTITY_CHECKPOINTS[k] as usize;
