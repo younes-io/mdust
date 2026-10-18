@@ -350,10 +350,7 @@ impl<'a> Inline<'a> {
     fn rule_text(&mut self, silent: bool) -> bool {
         let mut pos = self.pos;
         let max = self.pos_max;
-        let s = self.s;
-        while pos < max && !is_terminator(s[pos]) {
-            pos += 1;
-        }
+        pos += self.s[pos..max].iter().position(|&c| is_terminator(c)).unwrap_or(max - pos);
         if pos == self.pos {
             return false;
         }
