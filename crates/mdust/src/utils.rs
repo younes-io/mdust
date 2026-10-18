@@ -130,7 +130,7 @@ fn next_escape(b: &[u8], mut i: usize) -> usize {
 }
 
 /// Index of the first byte in `b[i..]` that is `&`, `<`, `>` or `"`, or `b.len()`.
-#[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+#[cfg(not(any(all(target_arch = "wasm32", target_feature = "simd128"), target_arch = "x86_64")))]
 #[inline]
 fn next_escape(b: &[u8], i: usize) -> usize {
     next_escape_swar(b, i)
@@ -470,4 +470,73 @@ pub fn push_uint(out: &mut String, mut n: u64) {
         }
     }
     out.push_str(core::str::from_utf8(&buf[i..]).unwrap_or_default());
+}
+
+/// Index of the first byte in `b[i..]` that is `&`, `<`, `>` or `"`, or `b.len()`.
+/// SSE2 is baseline x86_64, so no dispatch; AVX2 measured slower here because
+/// escaped strings are short.
+#[cfg(target_arch = "x86_64")]
+#[inline]
+fn next_escape(b: &[u8], mut i: usize) -> usize {
+    use core::arch::x86_64::*;
+    let n = b.len();
+    if n < 16 {
+        return next_escape_swar(b, i);
+    }
+    let p = b.as_ptr();
+    unsafe {
+        let (a, l, g, q) = (_mm_set1_epi8(b'&' as i8), _mm_set1_epi8(b'<' as i8), _mm_set1_epi8(b'>' as i8), _mm_set1_epi8(b'"' as i8));
+        let cls = |off: usize| -> u32 {
+            // Callers keep off + 16 <= n, so the load stays inside b.
+            let v = _mm_loadu_si128(p.add(off) as *const __m128i);
+            let m = _mm_or_si128(_mm_or_si128(_mm_cmpeq_epi8(v, a), _mm_cmpeq_epi8(v, l)), _mm_or_si128(_mm_cmpeq_epi8(v, g), _mm_cmpeq_epi8(v, q)));
+            _mm_movemask_epi8(m) as u32
+        };
+        while i + 16 <= n {
+            let m = cls(i);
+            if m != 0 {
+                return i + m.trailing_zeros() as usize;
+            }
+            i += 16;
+        }
+        if i < n {
+            // Overlapping tail: reload the last 16 bytes and drop the bits already scanned.
+            let off = n - 16;
+            let m = cls(off) >> (i - off);
+            if m != 0 {
+                return i + m.trailing_zeros() as usize;
+            }
+        }
+    }
+    n
+}
+
+#[cfg(all(test, target_arch = "x86_64"))]
+mod escape_tests {
+    use super::*;
+
+    #[test]
+    fn sse2_matches_swar() {
+        let mut x = 0x2545_f491_4f6c_dd1du64;
+        let mut next = || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        for n in 0..70 {
+            for _ in 0..40 {
+                let b: Vec<u8> = (0..n)
+                    .map(|_| match next() % 24 {
+                        0 => b"&<>\""[(next() % 4) as usize],
+                        1 => 0xe2,
+                        _ => b'a' + (next() % 26) as u8,
+                    })
+                    .collect();
+                for i in 0..=n {
+                    assert_eq!(next_escape(&b, i), next_escape_swar(&b, i), "n={n} i={i}");
+                }
+            }
+        }
+    }
 }

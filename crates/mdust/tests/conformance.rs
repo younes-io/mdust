@@ -97,8 +97,22 @@ fn window(s: &str, at: usize) -> &str {
     &s[from..to]
 }
 
+/// `MDUST_SIMD=sse2|ssse3|avx2` pins the x86 scanner level for the whole run.
+fn pin_simd_from_env() {
+    if let Ok(v) = std::env::var("MDUST_SIMD") {
+        let level = match v.as_str() {
+            "sse2" => 1,
+            "ssse3" => 2,
+            "avx2" => 3,
+            other => panic!("unknown MDUST_SIMD {other}"),
+        };
+        mdust::force_simd_level(level);
+    }
+}
+
 #[test]
 fn fixtures_match_oracle() {
+    pin_simd_from_env();
     let cases = oracle_cases();
     assert!(cases.len() > 900, "oracle dump returned only {} cases", cases.len());
     let mut failures = Vec::new();
@@ -125,6 +139,7 @@ fn fixtures_match_oracle() {
 
 #[test]
 fn regressions() {
+    pin_simd_from_env();
     // markdown-it steps one UTF-16 unit past a failed inline destination before it looks for
     // a reference label, so a BMP char there is skipped whole and an astral char is not.
     let cases: &[(&str, &str)] = &[
@@ -145,6 +160,7 @@ fn regressions() {
 /// mid-line, after the last newline, inside leading whitespace, alone.
 #[test]
 fn cr_and_nul_normalize_like_markdown_it() {
+    pin_simd_from_env();
     let cases: &[(&str, &str)] = &[
         ("a\r\nb\0c\n", "<p>a\nb\u{FFFD}c</p>\n"),
         ("# h\r\n\r\n> q\rz", "<h1>h</h1>\n<blockquote>\n<p>q\nz</p>\n</blockquote>\n"),

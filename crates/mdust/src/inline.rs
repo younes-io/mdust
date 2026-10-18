@@ -116,7 +116,7 @@ fn is_terminator(c: u8) -> bool {
 }
 
 /// First index in `pos..max` holding a terminator byte, or `max`.
-#[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+#[cfg(not(any(all(target_arch = "wasm32", target_feature = "simd128"), target_arch = "x86_64")))]
 #[inline(always)]
 fn find_terminator(s: &[u8], pos: usize, max: usize) -> usize {
     pos + s[pos..max].iter().position(|&c| is_terminator(c)).unwrap_or(max - pos)
@@ -1164,3 +1164,184 @@ fn emphasis_post(tokens: &mut [IToken], d: &[Delim]) {
         i -= 1;
     }
 }
+
+#[cfg(target_arch = "x86_64")]
+mod x86_text {
+    use super::is_terminator_slow;
+    use crate::x86;
+    use core::arch::x86_64::*;
+
+    // Same nibble classifier as `simd_text`: terminator iff LOT[c & 15] & HIT[c >> 4] != 0.
+    static HIT: [u8; 16] = [1, 0, 2, 4, 8, 16, 32, 64, 0, 0, 0, 0, 0, 0, 0, 0];
+    static LOT: [u8; 16] = {
+        let mut t = [0u8; 16];
+        let mut c = 0;
+        while c < 128 {
+            if is_terminator_slow(c as u8) {
+                t[c & 15] |= HIT[c >> 4];
+            }
+            c += 1;
+        }
+        t
+    };
+
+    const TERMINATORS: [u8; 12] = {
+        let mut t = [0u8; 12];
+        let mut k = 0;
+        let mut c = 0;
+        while c < 128 {
+            if is_terminator_slow(c as u8) {
+                t[k] = c as u8;
+                k += 1;
+            }
+            c += 1;
+        }
+        assert!(k == 12);
+        t
+    };
+
+    #[inline(always)]
+    unsafe fn cls16_sse2(p: *const u8) -> u32 {
+        let v = _mm_loadu_si128(p as *const __m128i);
+        let mut m = _mm_setzero_si128();
+        let mut k = 0;
+        while k < TERMINATORS.len() {
+            m = _mm_or_si128(m, _mm_cmpeq_epi8(v, _mm_set1_epi8(TERMINATORS[k] as i8)));
+            k += 1;
+        }
+        _mm_movemask_epi8(m) as u32
+    }
+
+    #[inline(always)]
+    unsafe fn cls16_ssse3(p: *const u8, lot: __m128i, hit: __m128i, m0f: __m128i) -> u32 {
+        let v = _mm_loadu_si128(p as *const __m128i);
+        let lo = _mm_shuffle_epi8(lot, _mm_and_si128(v, m0f));
+        let hi = _mm_shuffle_epi8(hit, _mm_and_si128(_mm_srli_epi16(v, 4), m0f));
+        !(_mm_movemask_epi8(_mm_cmpeq_epi8(_mm_and_si128(lo, hi), _mm_setzero_si128())) as u32) & 0xffff
+    }
+
+    #[inline(always)]
+    unsafe fn cls32_avx2(p: *const u8, lot: __m256i, hit: __m256i, m0f: __m256i) -> u32 {
+        let v = _mm256_loadu_si256(p as *const __m256i);
+        let lo = _mm256_shuffle_epi8(lot, _mm256_and_si256(v, m0f));
+        let hi = _mm256_shuffle_epi8(hit, _mm256_and_si256(_mm256_srli_epi16(v, 4), m0f));
+        !(_mm256_movemask_epi8(_mm256_cmpeq_epi8(_mm256_and_si256(lo, hi), _mm256_setzero_si256())) as u32)
+    }
+
+    /// 16-byte loop from `i`, then an overlapping load of the last 16 bytes of
+    /// `s`; loads may cover bytes outside `pos..max` but never outside `s`.
+    #[inline(always)]
+    unsafe fn scan16(s: &[u8], mut i: usize, max: usize, cls16: impl Fn(*const u8) -> u32) -> usize {
+        let p = s.as_ptr();
+        let n = s.len();
+        while i < max && i + 16 <= n {
+            let m = cls16(p.add(i));
+            if m != 0 {
+                return (i + m.trailing_zeros() as usize).min(max);
+            }
+            i += 16;
+        }
+        if i < max {
+            if n >= 16 {
+                let off = n - 16;
+                let m = cls16(p.add(off)) >> (i - off);
+                return if m != 0 { (i + m.trailing_zeros() as usize).min(max) } else { max };
+            }
+            while i < max && !is_terminator_slow(s[i]) {
+                i += 1;
+            }
+        }
+        i.min(max)
+    }
+
+    unsafe fn sse2(s: &[u8], pos: usize, max: usize) -> usize {
+        scan16(s, pos, max, |p| cls16_sse2(p))
+    }
+
+    #[target_feature(enable = "ssse3")]
+    unsafe fn ssse3(s: &[u8], pos: usize, max: usize) -> usize {
+        let lot = _mm_loadu_si128(LOT.as_ptr() as *const __m128i);
+        let hit = _mm_loadu_si128(HIT.as_ptr() as *const __m128i);
+        let m0f = _mm_set1_epi8(0x0f);
+        scan16(s, pos, max, |p| cls16_ssse3(p, lot, hit, m0f))
+    }
+
+    #[target_feature(enable = "avx2")]
+    unsafe fn avx2(s: &[u8], pos: usize, max: usize) -> usize {
+        let lot = _mm_loadu_si128(LOT.as_ptr() as *const __m128i);
+        let hit = _mm_loadu_si128(HIT.as_ptr() as *const __m128i);
+        let m0f = _mm_set1_epi8(0x0f);
+        let (lot2, hit2, m0f2) = (_mm256_broadcastsi128_si256(lot), _mm256_broadcastsi128_si256(hit), _mm256_set1_epi8(0x0f));
+        let mut i = pos;
+        while i < max && i + 32 <= s.len() {
+            let m = cls32_avx2(s.as_ptr().add(i), lot2, hit2, m0f2);
+            if m != 0 {
+                return (i + m.trailing_zeros() as usize).min(max);
+            }
+            i += 32;
+        }
+        scan16(s, i, max, |p| cls16_ssse3(p, lot, hit, m0f))
+    }
+
+    /// First index in `pos..max` holding a terminator byte, or `max`.
+    #[inline]
+    pub fn find_terminator(s: &[u8], pos: usize, max: usize) -> usize {
+        unsafe {
+            match x86::level() {
+                x86::AVX2 => avx2(s, pos, max),
+                x86::SSSE3 => ssse3(s, pos, max),
+                _ => sse2(s, pos, max),
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use alloc::vec::Vec;
+
+        fn scalar(s: &[u8], pos: usize, max: usize) -> usize {
+            pos + s[pos..max].iter().position(|&c| is_terminator_slow(c)).unwrap_or(max - pos)
+        }
+
+        #[test]
+        fn every_level_matches_scalar() {
+            let mut x = 0x9e37_79b9_7f4a_7c15u64;
+            let mut next = || {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                x
+            };
+            for n in 0..90 {
+                for _ in 0..40 {
+                    // Mostly plain letters so runs get long enough to hit the 32-byte loop.
+                    let s: Vec<u8> = (0..n)
+                        .map(|_| match next() % 40 {
+                            0 => TERMINATORS[(next() % 12) as usize],
+                            1 => 0xc3,
+                            _ => b'a' + (next() % 26) as u8,
+                        })
+                        .collect();
+                    for pos in 0..=n {
+                        for max in pos..=n {
+                            let want = scalar(&s, pos, max);
+                            unsafe {
+                                assert_eq!(sse2(&s, pos, max), want, "sse2 n={n} pos={pos} max={max}");
+                                assert_eq!(ssse3(&s, pos, max), want, "ssse3 n={n} pos={pos} max={max}");
+                                assert_eq!(avx2(&s, pos, max), want, "avx2 n={n} pos={pos} max={max}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn this_machine_detects_a_level() {
+            assert!(matches!(x86::level(), x86::SSE2 | x86::SSSE3 | x86::AVX2));
+        }
+    }
+}
+#[cfg(target_arch = "x86_64")]
+use x86_text::find_terminator;
