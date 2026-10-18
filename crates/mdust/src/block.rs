@@ -463,8 +463,7 @@ impl<'a> State<'a> {
                 || self.reference(line, end_line, false)
                 || self.html_block(line, end_line, false)
                 || self.heading(line, end_line, false)
-                || self.lheading(line, end_line)
-                || self.paragraph(line, end_line);
+                || self.lheading_or_paragraph(line, end_line);
             debug_assert!(ok);
             self.tight = !has_empty_lines;
             if self.is_empty(self.line - 1) {
@@ -1191,10 +1190,12 @@ impl<'a> State<'a> {
         true
     }
 
-    fn lheading(&mut self, start_line: usize, end_line: usize) -> bool {
-        if self.s_count[start_line] - self.blk_indent >= 4 {
-            return false;
-        }
+    /// lheading and paragraph walk the same continuation lines with the same
+    /// skip and terminator checks; only lheading's setext marker test differs,
+    /// and when no marker is found its `next` is the paragraph's `next`. One
+    /// walk serves both, so each line is classified once.
+    fn lheading_or_paragraph(&mut self, start_line: usize, end_line: usize) -> bool {
+        let may_head = self.s_count[start_line] - self.blk_indent < 4;
         let old_parent = self.parent;
         self.parent = Parent::Paragraph;
         let mut level = 0u8;
@@ -1204,7 +1205,7 @@ impl<'a> State<'a> {
                 next += 1;
                 continue;
             }
-            if self.s_count[next] >= self.blk_indent {
+            if may_head && self.s_count[next] >= self.blk_indent {
                 let mut pos = self.b_marks[next] + self.t_shift[next];
                 let max = self.e_marks[next];
                 if pos < max {
@@ -1228,40 +1229,19 @@ impl<'a> State<'a> {
             }
             next += 1;
         }
+        let bi = self.blk_indent;
+        let (a, b) = self.get_lines_trimmed(start_line, next, bi);
         if level == 0 {
-            self.parent = old_parent;
-            return false;
+            self.line = next;
+            self.push(Kind::ParagraphOpen);
+            self.push_content(Kind::Inline, a, b);
+            self.push(Kind::ParagraphClose);
+        } else {
+            self.line = next + 1;
+            self.push(Kind::HeadingOpen(level));
+            self.push_content(Kind::Inline, a, b);
+            self.push(Kind::HeadingClose(level));
         }
-        let bi = self.blk_indent;
-        let (a, b) = self.get_lines_trimmed(start_line, next, bi);
-        self.line = next + 1;
-        self.push(Kind::HeadingOpen(level));
-        self.push_content(Kind::Inline, a, b);
-        self.push(Kind::HeadingClose(level));
-        self.parent = old_parent;
-        true
-    }
-
-    fn paragraph(&mut self, start_line: usize, end_line: usize) -> bool {
-        let old_parent = self.parent;
-        let mut next = start_line + 1;
-        self.parent = Parent::Paragraph;
-        while next < end_line && !self.is_empty(next) {
-            if self.s_count[next] - self.blk_indent > 3 || self.s_count[next] < 0 {
-                next += 1;
-                continue;
-            }
-            if self.terminates(Chain::Paragraph, next, end_line) {
-                break;
-            }
-            next += 1;
-        }
-        let bi = self.blk_indent;
-        let (a, b) = self.get_lines_trimmed(start_line, next, bi);
-        self.line = next;
-        self.push(Kind::ParagraphOpen);
-        self.push_content(Kind::Inline, a, b);
-        self.push(Kind::ParagraphClose);
         self.parent = old_parent;
         true
     }
