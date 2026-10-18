@@ -2,6 +2,7 @@
 extern crate alloc;
 
 mod prelude {
+    pub use alloc::borrow::Cow;
     pub use alloc::string::{String, ToString};
     pub use alloc::vec::Vec;
 }

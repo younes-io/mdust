@@ -1114,7 +1114,7 @@ impl<'a> State<'a> {
         if silent {
             return true;
         }
-        self.out.refs.entry(label).or_insert(Reference { href, title });
+        self.out.refs.entry(label).or_insert(Reference { href: href.into_owned(), title });
         self.line = next;
         true
     }

@@ -360,10 +360,13 @@ pub fn unescape_all_into(out: &mut String, s: &str) {
     out.push_str(&s[last..]);
 }
 
-pub fn unescape_all(s: &str) -> String {
+pub fn unescape_all(s: &str) -> Cow<'_, str> {
+    if !s.bytes().any(|c| c == b'\\' || c == b'&') {
+        return Cow::Borrowed(s);
+    }
     let mut out = String::with_capacity(s.len());
     unescape_all_into(&mut out, s);
-    out
+    Cow::Owned(out)
 }
 
 /// Decoding for inline `&...;` entities (rules_inline/entity.ts). Returns (consumed bytes).

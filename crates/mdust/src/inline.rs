@@ -702,7 +702,7 @@ impl<'a> Inline<'a> {
         let Some(label_end) = self.parse_link_label(self.pos, true) else { return false };
         let mut pos = label_end + 1;
         let mut parse_reference = true;
-        let mut href = String::new();
+        let mut href = Cow::Borrowed("");
         let mut title = String::new();
         if pos < max && self.s[pos] == b'(' {
             parse_reference = false;
@@ -715,7 +715,7 @@ impl<'a> Inline<'a> {
                 if validate_link(&href) {
                     pos = res.pos;
                 } else {
-                    href.clear();
+                    href = Cow::Borrowed("");
                 }
                 let start = pos;
                 pos = self.skip_ws_nl(pos, max);
@@ -743,7 +743,7 @@ impl<'a> Inline<'a> {
         if parse_reference {
             match self.reference_target(pos, label_start, label_end) {
                 Some((h, t, p)) => {
-                    href = h;
+                    href = Cow::Owned(h);
                     title = t;
                     pos = p;
                 }
@@ -778,7 +778,7 @@ impl<'a> Inline<'a> {
         let label_start = self.pos + 2;
         let Some(label_end) = self.parse_link_label(self.pos + 1, false) else { return false };
         let mut pos = label_end + 1;
-        let mut href = String::new();
+        let mut href = Cow::Borrowed("");
         let title;
         if pos < max && self.s[pos] == b'(' {
             pos = self.skip_ws_nl(pos + 1, max);
@@ -790,7 +790,7 @@ impl<'a> Inline<'a> {
                 if validate_link(&href) {
                     pos = res.pos;
                 } else {
-                    href.clear();
+                    href = Cow::Borrowed("");
                 }
             }
             let start = pos;
@@ -810,7 +810,7 @@ impl<'a> Inline<'a> {
         } else {
             match self.reference_target(pos, label_start, label_end) {
                 Some((h, t, p)) => {
-                    href = h;
+                    href = Cow::Owned(h);
                     title = t;
                     pos = p;
                 }
@@ -873,9 +873,9 @@ impl<'a> Inline<'a> {
         }
         let url = &self.src[start + 1..pos];
         let full = if is_autolink(url) {
-            normalize_link(url.to_string())
+            normalize_link(Cow::Borrowed(url))
         } else if is_email(url) {
-            normalize_link(["mailto:", url].concat())
+            normalize_link(Cow::Owned(["mailto:", url].concat()))
         } else {
             return false;
         };

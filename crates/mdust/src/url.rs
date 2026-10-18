@@ -596,11 +596,11 @@ fn is_normalized(url: &str) -> bool {
     true
 }
 
-pub fn normalize_link(url: String) -> String {
+pub fn normalize_link(url: Cow<'_, str>) -> Cow<'_, str> {
     if is_normalized(&url) {
         return url;
     }
-    normalize_link_slow(&url)
+    Cow::Owned(normalize_link_slow(&url))
 }
 
 fn normalize_link_slow(url: &str) -> String {
@@ -669,14 +669,14 @@ mod tests {
         ];
         let label = |n: usize| ["https://", &"a".repeat(n), ".b/c"].concat();
         for s in [label(63), label(64), label(255), label(300)] {
-            assert_eq!(normalize_link(s.clone()), normalize_link_slow(&s), "{s:?}");
+            assert_eq!(normalize_link(Cow::Borrowed(s.as_str())), normalize_link_slow(&s), "{s:?}");
         }
         let hosts = |n: usize| ["https://", &["ab."].concat().repeat(n), "c/"].concat();
         for s in [hosts(84), hosts(85), hosts(86)] {
-            assert_eq!(normalize_link(s.clone()), normalize_link_slow(&s), "{s:?}");
+            assert_eq!(normalize_link(Cow::Borrowed(s.as_str())), normalize_link_slow(&s), "{s:?}");
         }
         for s in edge {
-            assert_eq!(normalize_link(s.to_string()), normalize_link_slow(s), "{s:?}");
+            assert_eq!(normalize_link(Cow::Borrowed(s)), normalize_link_slow(s), "{s:?}");
         }
         let alphabet: Vec<u8> = (0u8..128)
             .filter(|&c| encode_keep(c))
@@ -698,7 +698,7 @@ mod tests {
                     s.push(alphabet[r as usize % alphabet.len()] as char);
                 }
             }
-            assert_eq!(normalize_link(s.clone()), normalize_link_slow(&s), "{s:?}");
+            assert_eq!(normalize_link(Cow::Borrowed(s.as_str())), normalize_link_slow(&s), "{s:?}");
         }
     }
 }

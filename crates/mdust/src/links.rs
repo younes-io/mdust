@@ -1,14 +1,14 @@
 //! Ports of markdown-it's `parseLinkDestination` and `parseLinkTitle`.
 use crate::prelude::*;
 
-use crate::utils::unescape_all_into;
+use crate::utils::{unescape_all, unescape_all_into};
 
-pub struct Dest {
+pub struct Dest<'a> {
     pub pos: usize,
-    pub str: String,
+    pub str: Cow<'a, str>,
 }
 
-pub fn parse_link_destination(s: &str, start: usize, max: usize) -> Option<Dest> {
+pub fn parse_link_destination(s: &str, start: usize, max: usize) -> Option<Dest<'_>> {
     let b = s.as_bytes();
     let mut pos = start;
     if pos < b.len() && b[pos] == b'<' {
@@ -16,11 +16,7 @@ pub fn parse_link_destination(s: &str, start: usize, max: usize) -> Option<Dest>
         while pos < max {
             match b[pos] {
                 b'\n' | b'<' => return None,
-                b'>' => {
-                    let mut out = String::new();
-                    unescape_all_into(&mut out, &s[start + 1..pos]);
-                    return Some(Dest { pos: pos + 1, str: out });
-                }
+                b'>' => return Some(Dest { pos: pos + 1, str: unescape_all(&s[start + 1..pos]) }),
                 b'\\' if pos + 1 < max => pos += 2,
                 _ => pos += 1,
             }
@@ -62,9 +58,7 @@ pub fn parse_link_destination(s: &str, start: usize, max: usize) -> Option<Dest>
     if start == pos || level != 0 {
         return None;
     }
-    let mut out = String::new();
-    unescape_all_into(&mut out, &s[start..pos]);
-    Some(Dest { pos, str: out })
+    Some(Dest { pos, str: unescape_all(&s[start..pos]) })
 }
 
 #[derive(Default)]
