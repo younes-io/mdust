@@ -5,3 +5,30 @@ mkdir -p corpus && cd corpus
 [ -d mdit-src ] || git clone -q --depth 1 https://github.com/markdown-it/markdown-it mdit-src
 [ -d rust-book ] || git clone -q --depth 1 https://github.com/rust-lang/book rust-book
 [ -f spec.md ] || curl -sfL https://raw.githubusercontent.com/commonmark/commonmark-spec/master/spec.txt -o spec.md
+
+# sparse <dir> <repo> <sha> <path>...: shallow, blobless, sparse checkout pinned to one commit.
+sparse() {
+  local dir=$1 repo=$2 sha=$3; shift 3
+  [ -d "$dir" ] && return
+  git init -q "$dir"
+  git -C "$dir" remote add origin "https://github.com/$repo"
+  git -C "$dir" sparse-checkout set --no-cone "$@"
+  git -C "$dir" fetch -q --depth 1 --filter=blob:none origin "$sha"
+  git -C "$dir" checkout -q FETCH_HEAD
+}
+
+sparse node-api nodejs/node e463b487c69d1ef482a407d55410498164c0892c '/doc/api/*.md'
+sparse mdn-js mdn/content a1aa79c09717761fc72c20bac94bb9c430ed487a '/files/en-us/web/javascript/reference/**'
+sparse k8s-concepts kubernetes/website 079a4d63f072a54c317689c957307aaa018cfe34 '/content/en/docs/concepts/**'
+
+raw() { curl -sfL "https://raw.githubusercontent.com/$1/$2/$3" -o "$4"; }
+if [ ! -d awesome ]; then
+  mkdir -p awesome.tmp
+  raw sindresorhus/awesome bc98e517ddca672f55f9857d714fc3ea3c3540b2 readme.md awesome.tmp/awesome.md
+  raw vinta/awesome-python 3e8c86bac6ad0548b36921ba219a56592982e046 README.md awesome.tmp/awesome-python.md
+  raw avelino/awesome-go 9084f305adfe8a9677a706cbac851a7b1af5fe77 README.md awesome.tmp/awesome-go.md
+  raw awesome-selfhosted/awesome-selfhosted 2a5937cbdb6879e4097fa9c6b0cd810b021827e3 README.md awesome.tmp/awesome-selfhosted.md
+  raw rust-unofficial/awesome-rust 65354b7306c9296f53d6c988f4def01c82b9d9ec README.md awesome.tmp/awesome-rust.md
+  raw sindresorhus/awesome-nodejs b8e1c0c3879544e32dca7d381d8275ceff267e46 readme.md awesome.tmp/awesome-nodejs.md
+  mv awesome.tmp awesome
+fi
