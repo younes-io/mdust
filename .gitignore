@@ -1,0 +1,6 @@
+/target/
+/crates/mdust-wasm/pkg/
+/bench/corpus
+/bench/node_modules
+/bench/rust-wasm/pkg
+/.tools/

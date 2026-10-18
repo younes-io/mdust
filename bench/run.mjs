@@ -5,7 +5,7 @@ import { corpora } from './corpora.mjs';
 const RUNS = Number(process.env.RUNS ?? 7);
 const MIN_MS = process.env.MIN_MS ?? '2000';
 const CPU = process.env.CPU ?? '2';
-const impls = ['markdown-it', 'markdown-wasm', 'markdown-it-rs-wasm', 'markdown-it-rs-native'];
+const impls = ['markdown-it', 'markdown-wasm', 'markdown-it-rs-wasm', 'markdown-it-rs-native', 'mdust'];
 const here = new URL('.', import.meta.url).pathname;
 
 function once(impl, corpus) {

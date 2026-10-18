@@ -11,6 +11,7 @@
     "build": "cd rust-wasm && cargo build --release --target wasm32-unknown-unknown && wasm-bindgen --target nodejs --out-dir pkg target/wasm32-unknown-unknown/release/mdit_rs_wasm.wasm && echo '{\"type\":\"commonjs\"}' > pkg/package.json && cd ../native && cargo build --release",
     "conformance": "node conformance.mjs",
     "fuzz": "node fuzz.mjs",
-    "bench": "node run.mjs"
+    "bench": "node run.mjs",
+    "build:mdust": "cd .. && cargo build --profile wasm -p mdust-wasm --target wasm32-unknown-unknown && wasm-bindgen --target nodejs --out-dir crates/mdust-wasm/pkg target/wasm32-unknown-unknown/wasm/mdust_wasm.wasm && echo '{\"type\":\"commonjs\"}' > crates/mdust-wasm/pkg/package.json"
   }
 }
