@@ -3,3 +3,4 @@ corpus/
 target/
 pkg/
 Cargo.lock
+fuzz-out/
