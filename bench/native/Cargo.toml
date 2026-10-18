@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 mdit-rs-wasm = { path = "../rust-wasm" }
+mdust = { path = "../../crates/mdust" }
 
 [profile.release]
 opt-level = 3

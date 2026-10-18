@@ -1,8 +1,11 @@
-// A/B two mdust pkg dirs on the same worker and pinning as run.mjs: alternating
-// order, median of RUNS, per corpus, plus the geomean of B/A over the corpora.
-// usage: RUNS=7 CPU=10 CORPORA=rust-book,awesome node ab.mjs <pkg A> <pkg B>
+// A/B two mdust builds with the same pinning as run.mjs: alternating order, median of
+// RUNS, per corpus, plus the geomean of B/A over the corpora. A side is a WASM pkg dir
+// or a native binary with the mdust-native contract.
+// usage: RUNS=7 CPU=10 CORPORA=rust-book,awesome node ab.mjs <pkg dir or binary A> <B>
 import { execFileSync } from 'node:child_process';
+import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { corpora } from './corpora.mjs';
 
 const RUNS = Number(process.env.RUNS ?? 7);
 const MIN_MS = process.env.MIN_MS ?? '2000';
@@ -15,9 +18,12 @@ if (pkgs.length !== 2) {
   process.exit(2);
 }
 
-function once(pkg, corpus) {
-  const out = execFileSync('taskset', ['-c', CPU, 'node', `${here}worker.mjs`, 'mdust', corpus, MIN_MS], {
-    encoding: 'utf8', env: { ...process.env, MDUST_PKG: pkg },
+function once(side, corpus) {
+  const cmd = statSync(side).isFile()
+    ? [side, MIN_MS, ...corpora[corpus]()]
+    : ['node', `${here}worker.mjs`, 'mdust', corpus, MIN_MS];
+  const out = execFileSync('taskset', ['-c', CPU, ...cmd], {
+    encoding: 'utf8', env: { ...process.env, MDUST_PKG: side },
   });
   return JSON.parse(out);
 }

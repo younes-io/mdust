@@ -1,16 +1,19 @@
 import { execFileSync } from 'node:child_process';
-import { statSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { corpora } from './corpora.mjs';
 
 const RUNS = Number(process.env.RUNS ?? 7);
 const MIN_MS = process.env.MIN_MS ?? '2000';
 const CPU = process.env.CPU ?? '2';
-const impls = ['markdown-it', 'markdown-wasm', 'markdown-it-rs-wasm', 'markdown-it-rs-native', 'mdust'];
+const impls = ['markdown-it', 'markdown-wasm', 'markdown-it-rs-wasm', 'markdown-it-rs-native', 'mdust', 'mdust-native'];
 const here = new URL('.', import.meta.url).pathname;
+// bench/pgo.sh writes the profile-guided binary; it wins over the plain release build when present.
+const mdustNative = [`${here}native/target/release/mdust-native-pgo`, `${here}native/target/release/mdust-native`].find(existsSync);
+const natives = { 'markdown-it-rs-native': `${here}native/target/release/mdit-rs-native`, 'mdust-native': mdustNative };
 
 function once(impl, corpus) {
-  const cmd = impl === 'markdown-it-rs-native'
-    ? [`${here}native/target/release/mdit-rs-native`, MIN_MS, ...corpora[corpus]()]
+  const cmd = impl in natives
+    ? [natives[impl], MIN_MS, ...corpora[corpus]()]
     : ['node', `${here}worker.mjs`, impl, corpus, MIN_MS];
   return JSON.parse(execFileSync('taskset', ['-c', CPU, ...cmd], { encoding: 'utf8' }));
 }
