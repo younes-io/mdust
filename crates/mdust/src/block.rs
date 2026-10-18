@@ -55,6 +55,43 @@ impl Kind {
         }
     }
 
+    /// Whole tag for a token with no attributes: `<p>`, or `<ul>\n` when `lf`
+    /// (closing tags always end in a newline).
+    pub fn html(self, lf: bool) -> &'static str {
+        use Kind::*;
+        const HO: [&str; 7] = ["", "<h1>", "<h2>", "<h3>", "<h4>", "<h5>", "<h6>"];
+        const HOL: [&str; 7] = ["", "<h1>\n", "<h2>\n", "<h3>\n", "<h4>\n", "<h5>\n", "<h6>\n"];
+        const HC: [&str; 7] = ["", "</h1>\n", "</h2>\n", "</h3>\n", "</h4>\n", "</h5>\n", "</h6>\n"];
+        match self {
+            ParagraphOpen => if lf { "<p>\n" } else { "<p>" },
+            ParagraphClose => "</p>\n",
+            HeadingOpen(l) => if lf { HOL[l as usize] } else { HO[l as usize] },
+            HeadingClose(l) => HC[l as usize],
+            BlockquoteOpen => if lf { "<blockquote>\n" } else { "<blockquote>" },
+            BlockquoteClose => "</blockquote>\n",
+            BulletListOpen => if lf { "<ul>\n" } else { "<ul>" },
+            BulletListClose => "</ul>\n",
+            OrderedListOpen(_) => if lf { "<ol>\n" } else { "<ol>" },
+            OrderedListClose => "</ol>\n",
+            ListItemOpen => if lf { "<li>\n" } else { "<li>" },
+            ListItemClose => "</li>\n",
+            TableOpen => if lf { "<table>\n" } else { "<table>" },
+            TableClose => "</table>\n",
+            TheadOpen => if lf { "<thead>\n" } else { "<thead>" },
+            TheadClose => "</thead>\n",
+            TbodyOpen => if lf { "<tbody>\n" } else { "<tbody>" },
+            TbodyClose => "</tbody>\n",
+            TrOpen => if lf { "<tr>\n" } else { "<tr>" },
+            TrClose => "</tr>\n",
+            ThOpen(_) => if lf { "<th>\n" } else { "<th>" },
+            ThClose => "</th>\n",
+            TdOpen(_) => if lf { "<td>\n" } else { "<td>" },
+            TdClose => "</td>\n",
+            Hr => "<hr>\n",
+            Inline | CodeBlock | Fence | HtmlBlock => "",
+        }
+    }
+
     pub fn tag(self) -> &'static str {
         use Kind::*;
         const H: [&str; 7] = ["", "h1", "h2", "h3", "h4", "h5", "h6"];

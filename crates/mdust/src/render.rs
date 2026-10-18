@@ -39,35 +39,34 @@ pub fn render(blocks: &Blocks, out: &mut String) {
                 if nesting != -1 && idx > 0 && toks[idx - 1].hidden && toks[idx - 1].kind.nesting() == -1 {
                     out.push('\n');
                 }
-                out.push_str(if nesting == -1 { "</" } else { "<" });
-                out.push_str(t.kind.tag());
+                let lf = nesting != 1
+                    || match toks.get(idx + 1) {
+                        Some(n) => {
+                            !(n.kind == Kind::Inline
+                                || n.hidden
+                                || (n.kind.nesting() == -1 && n.kind.tag() == t.kind.tag()))
+                        }
+                        None => true,
+                    };
                 match t.kind {
                     Kind::OrderedListOpen(n) if n != 1 => {
-                        out.push_str(" start=\"");
+                        out.push_str("<ol start=\"");
                         push_uint(out, n as u64);
-                        out.push('"');
+                        out.push_str(if lf { "\">\n" } else { "\">" });
                     }
                     Kind::ThOpen(a) | Kind::TdOpen(a) if a != 0 => {
-                        out.push_str(match a {
-                            1 => " style=\"text-align:center\"",
-                            2 => " style=\"text-align:right\"",
-                            _ => " style=\"text-align:left\"",
+                        out.push_str(match (t.kind, a) {
+                            (Kind::ThOpen(_), 1) => "<th style=\"text-align:center\"",
+                            (Kind::ThOpen(_), 2) => "<th style=\"text-align:right\"",
+                            (Kind::ThOpen(_), _) => "<th style=\"text-align:left\"",
+                            (_, 1) => "<td style=\"text-align:center\"",
+                            (_, 2) => "<td style=\"text-align:right\"",
+                            _ => "<td style=\"text-align:left\"",
                         });
+                        out.push_str(if lf { ">\n" } else { ">" });
                     }
-                    _ => {}
+                    k => out.push_str(k.html(lf)),
                 }
-                let mut need_lf = true;
-                if nesting == 1 {
-                    if let Some(n) = toks.get(idx + 1) {
-                        if n.kind == Kind::Inline
-                            || n.hidden
-                            || (n.kind.nesting() == -1 && n.kind.tag() == t.kind.tag())
-                        {
-                            need_lf = false;
-                        }
-                    }
-                }
-                out.push_str(if need_lf { ">\n" } else { ">" });
             }
         }
     }
