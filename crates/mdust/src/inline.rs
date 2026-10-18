@@ -7,7 +7,7 @@ use crate::url::{normalize_link, normalize_link_text, validate_link};
 use crate::utils::{
     inline_entity, is_md_ascii_punct, is_punct_char, is_space, is_white_space, normalize_reference,
 };
-use std::collections::HashMap;
+use crate::utils::FxMap;
 
 const MAX_NESTING: u32 = 100;
 
@@ -61,7 +61,15 @@ struct Delim {
     close: bool,
 }
 
-pub type Refs = HashMap<String, Reference>;
+pub type Refs = FxMap<String, Reference>;
+
+/// Buffers reused across inline parses of one document.
+#[derive(Default)]
+pub struct Scratch {
+    tokens: Vec<IToken>,
+    arena: String,
+    lists: Vec<Vec<Delim>>,
+}
 
 pub struct Inline<'a> {
     pub src: &'a str,
@@ -77,13 +85,27 @@ pub struct Inline<'a> {
     lists: Vec<Vec<Delim>>,
     cur: usize,
     prev: Vec<usize>,
-    cache: HashMap<usize, usize>,
-    backticks: Option<HashMap<usize, usize>>,
+    cache: FxMap<usize, usize>,
+    backticks: Option<FxMap<usize, usize>>,
     skip_html_special: bool,
 }
 
-#[inline]
+static TERMINATOR: [bool; 256] = {
+    let mut t = [false; 256];
+    let mut i = 0;
+    while i < 256 {
+        t[i] = is_terminator_slow(i as u8);
+        i += 1;
+    }
+    t
+};
+
+#[inline(always)]
 fn is_terminator(c: u8) -> bool {
+    TERMINATOR[c as usize]
+}
+
+const fn is_terminator_slow(c: u8) -> bool {
     matches!(
         c,
         b'\n' | b'!' | b'#' | b'$' | b'%' | b'&' | b'*' | b'+' | b'-' | b':' | b'<' | b'=' | b'>'
@@ -93,6 +115,20 @@ fn is_terminator(c: u8) -> bool {
 
 impl<'a> Inline<'a> {
     pub fn parse(src: &'a str, refs: &'a Refs) -> Self {
+        Self::parse_with(src, refs, &mut Scratch::default())
+    }
+
+    pub fn parse_with(src: &'a str, refs: &'a Refs, scratch: &mut Scratch) -> Self {
+        let mut tokens = std::mem::take(&mut scratch.tokens);
+        tokens.clear();
+        let mut arena = std::mem::take(&mut scratch.arena);
+        arena.clear();
+        let mut lists = std::mem::take(&mut scratch.lists);
+        lists.truncate(1);
+        match lists.first_mut() {
+            Some(l) => l.clear(),
+            None => lists.push(Vec::new()),
+        }
         let mut st = Inline {
             src,
             s: src.as_bytes(),
@@ -102,18 +138,24 @@ impl<'a> Inline<'a> {
             level: 0,
             pend_a: 0,
             pend_b: 0,
-            tokens: Vec::new(),
-            arena: String::new(),
-            lists: vec![Vec::new()],
+            tokens,
+            arena,
+            lists,
             cur: 0,
             prev: Vec::new(),
-            cache: HashMap::new(),
+            cache: FxMap::default(),
             backticks: None,
             skip_html_special: false,
         };
         st.tokenize();
         st.post_process();
         st
+    }
+
+    pub fn recycle(self, scratch: &mut Scratch) {
+        scratch.tokens = self.tokens;
+        scratch.arena = self.arena;
+        scratch.lists = self.lists;
     }
 
     pub fn content(&self, t: &IToken) -> &str {
@@ -380,7 +422,7 @@ impl<'a> Inline<'a> {
         }
         let opener_len = pos - start;
         if self.backticks.is_none() {
-            let mut runs = HashMap::new();
+            let mut runs = FxMap::default();
             let mut p = 0;
             while let Some(i) = memchr(b'`', &s[p..]) {
                 let st = p + i;

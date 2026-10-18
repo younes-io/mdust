@@ -1,14 +1,15 @@
 //! HTML output, a port of markdown-it's Renderer default rules.
 
 use crate::block::{Blocks, Kind};
-use crate::inline::{IKind, Inline};
+use crate::inline::{IKind, Inline, Scratch};
 use crate::utils::{escape_html_into, is_js_space, js_trim, unescape_all};
 
 pub fn render(blocks: &Blocks, out: &mut String) {
     let toks = &blocks.tokens;
+    let mut scratch = Scratch::default();
     for (idx, t) in toks.iter().enumerate() {
         match t.kind {
-            Kind::Inline => render_inline(blocks.content(t), blocks, out),
+            Kind::Inline => render_inline(blocks.content(t), blocks, &mut scratch, out),
             Kind::CodeBlock => {
                 out.push_str("<pre><code>");
                 escape_html_into(out, blocks.content(t));
@@ -71,8 +72,8 @@ pub fn render(blocks: &Blocks, out: &mut String) {
     }
 }
 
-fn render_inline(src: &str, blocks: &Blocks, out: &mut String) {
-    let st = Inline::parse(src, &blocks.refs);
+fn render_inline(src: &str, blocks: &Blocks, scratch: &mut Scratch, out: &mut String) {
+    let st = Inline::parse_with(src, &blocks.refs, scratch);
     for t in &st.tokens {
         match t.kind {
             IKind::Text | IKind::TextSpecial => escape_html_into(out, st.content(t)),
@@ -119,4 +120,5 @@ fn render_inline(src: &str, blocks: &Blocks, out: &mut String) {
             }
         }
     }
+    st.recycle(scratch);
 }

@@ -69,10 +69,22 @@ pub fn ascii_trim(s: &str) -> &str {
     s.trim_matches(|c| matches!(c, ' ' | '\t' | '\n' | '\r'))
 }
 
+static NEEDS_ESCAPE: [bool; 256] = {
+    let mut t = [false; 256];
+    t[b'&' as usize] = true;
+    t[b'<' as usize] = true;
+    t[b'>' as usize] = true;
+    t[b'"' as usize] = true;
+    t
+};
+
 pub fn escape_html_into(out: &mut String, s: &str) {
     let b = s.as_bytes();
     let mut last = 0;
     for (i, &c) in b.iter().enumerate() {
+        if !NEEDS_ESCAPE[c as usize] {
+            continue;
+        }
         let rep = match c {
             b'&' => "&amp;",
             b'<' => "&lt;",
@@ -328,3 +340,36 @@ pub fn normalize_reference(s: &str) -> String {
     }
     collapsed.to_lowercase().to_uppercase()
 }
+
+#[derive(Default, Clone, Copy)]
+pub struct FxHasher(u64);
+
+impl std::hash::Hasher for FxHasher {
+    #[inline]
+    fn write(&mut self, bytes: &[u8]) {
+        for chunk in bytes.chunks(8) {
+            let mut v = 0u64;
+            for (i, &b) in chunk.iter().enumerate() {
+                v |= (b as u64) << (i * 8);
+            }
+            self.add(v);
+        }
+    }
+    #[inline]
+    fn write_usize(&mut self, n: usize) {
+        self.add(n as u64);
+    }
+    #[inline]
+    fn finish(&self) -> u64 {
+        self.0
+    }
+}
+
+impl FxHasher {
+    #[inline]
+    fn add(&mut self, v: u64) {
+        self.0 = (self.0.rotate_left(5) ^ v).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95);
+    }
+}
+
+pub type FxMap<K, V> = std::collections::HashMap<K, V, std::hash::BuildHasherDefault<FxHasher>>;

@@ -3,3 +3,4 @@
 /bench/corpus
 /bench/node_modules
 /bench/rust-wasm/pkg
+/.tools/

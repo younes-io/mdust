@@ -4,7 +4,7 @@ use crate::html;
 use crate::links::{parse_link_destination, parse_link_title};
 use crate::url::{normalize_link, validate_link};
 use crate::utils::{ascii_trim, is_space, js_trim, normalize_reference};
-use std::collections::HashMap;
+use crate::utils::FxMap;
 
 const MAX_NESTING: u32 = 100;
 
@@ -97,7 +97,7 @@ pub struct Reference {
 pub struct Blocks {
     pub tokens: Vec<Token>,
     pub buf: String,
-    pub refs: HashMap<String, Reference>,
+    pub refs: FxMap<String, Reference>,
 }
 
 impl Blocks {
@@ -176,7 +176,7 @@ impl<'a> State<'a> {
             out: Blocks {
                 tokens: Vec::with_capacity(n),
                 buf: String::with_capacity(src.len() + 16),
-                refs: HashMap::new(),
+                refs: FxMap::default(),
             },
         };
         let len = s.len();
