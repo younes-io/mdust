@@ -506,7 +506,31 @@ fn recode_hostname(u: &Url) -> bool {
         && matches!(u.protocol.as_deref(), None | Some("http:" | "https:" | "mailto:"))
 }
 
-pub fn normalize_link(url: &str) -> String {
+/// True when `normalize_link(url) == url`, so the common relative href skips
+/// `parse`, `encode` and `format` and their allocations. The proof, from those
+/// three functions: every byte is in `encode_keep`, so `encode` is the identity
+/// and nothing is whitespace (`js_trim` is the identity), `%` or non-ASCII. The
+/// leading `[A-Za-z0-9.+-]` run is not followed by `:`, so `parse` finds no
+/// protocol, and without `//` in front it skips the host branch and only cuts
+/// `rest` into pathname, search and hash, which `format` concatenates back in
+/// the original order.
+fn is_normalized(url: &str) -> bool {
+    let b = url.as_bytes();
+    if !b.iter().all(|&c| encode_keep(c)) || b.starts_with(b"//") {
+        return false;
+    }
+    let n = b.iter().take_while(|&&c| c.is_ascii_alphanumeric() || matches!(c, b'.' | b'+' | b'-')).count();
+    !(n > 0 && b.get(n) == Some(&b':'))
+}
+
+pub fn normalize_link(url: String) -> String {
+    if is_normalized(&url) {
+        return url;
+    }
+    normalize_link_slow(&url)
+}
+
+fn normalize_link_slow(url: &str) -> String {
     let mut u = parse(url);
     if recode_hostname(&u) {
         if let Some(h) = to_ascii(&u.hostname) {
@@ -552,4 +576,43 @@ pub fn validate_link(url: &str) -> bool {
             || starts("data:image/webp;");
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fast_path_matches_full_normalization() {
+        let edge = [
+            "", "//a", "/a", "a:b", "a_b:c", "#x", "?x#y", "#a?b", "ch03-02-data-types.html",
+            "mailto:x", "%41", "a%zz", "a b", ".:x", "+:", ":a", "a/b:c", "http://a.b/c", "a//b",
+            "\u{e9}", "a\\b", "x?", "x#", " x", "x ",
+        ];
+        for s in edge {
+            assert_eq!(normalize_link(s.to_string()), normalize_link_slow(s), "{s:?}");
+        }
+        let alphabet: Vec<u8> = (0u8..128)
+            .filter(|&c| encode_keep(c))
+            .chain(b"% \\\t\n".iter().copied())
+            .collect();
+        let mut seed: u32 = 0x9E37_79B9;
+        let mut next = || {
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            seed >> 8
+        };
+        for _ in 0..500 {
+            let len = (next() % 24) as usize;
+            let mut s = String::new();
+            for _ in 0..len {
+                let r = next();
+                if r % 29 == 0 {
+                    s.push('\u{e9}');
+                } else {
+                    s.push(alphabet[r as usize % alphabet.len()] as char);
+                }
+            }
+            assert_eq!(normalize_link(s.clone()), normalize_link_slow(&s), "{s:?}");
+        }
+    }
 }

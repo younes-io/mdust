@@ -629,7 +629,7 @@ impl<'a> Inline<'a> {
                 return false;
             }
             if let Some(res) = parse_link_destination(self.src, pos, self.pos_max) {
-                href = normalize_link(&res.str);
+                href = normalize_link(res.str);
                 if validate_link(&href) {
                     pos = res.pos;
                 } else {
@@ -704,7 +704,7 @@ impl<'a> Inline<'a> {
                 return false;
             }
             if let Some(res) = parse_link_destination(self.src, pos, self.pos_max) {
-                href = normalize_link(&res.str);
+                href = normalize_link(res.str);
                 if validate_link(&href) {
                     pos = res.pos;
                 } else {
@@ -791,9 +791,9 @@ impl<'a> Inline<'a> {
         }
         let url = &self.src[start + 1..pos];
         let full = if is_autolink(url) {
-            normalize_link(url)
+            normalize_link(url.to_string())
         } else if is_email(url) {
-            normalize_link(&["mailto:", url].concat())
+            normalize_link(["mailto:", url].concat())
         } else {
             return false;
         };

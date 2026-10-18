@@ -1049,7 +1049,7 @@ impl<'a> State<'a> {
             }
         }
         let Some(dest) = parse_link_destination(src, pos, max) else { return false };
-        let href = normalize_link(&dest.str);
+        let href = normalize_link(dest.str);
         if !validate_link(&href) {
             return false;
         }
