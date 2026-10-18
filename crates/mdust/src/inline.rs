@@ -186,11 +186,14 @@ mod simd_text {
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 use simd_text::find_terminator;
 
+/// markdown-it also stops text at `# $ % + - : = @ ^ { }`, but no rule in this
+/// preset starts on them, so it appends each to pending one byte at a time;
+/// scanning through them yields the same pending run. `]` stays a stop so
+/// `parse_link_label` sees it at `pos`, and `>` stays a stop to match.
 const fn is_terminator_slow(c: u8) -> bool {
     matches!(
         c,
-        b'\n' | b'!' | b'#' | b'$' | b'%' | b'&' | b'*' | b'+' | b'-' | b':' | b'<' | b'=' | b'>'
-            | b'@' | b'[' | b'\\' | b']' | b'^' | b'_' | b'`' | b'{' | b'}' | b'~'
+        b'\n' | b'!' | b'&' | b'*' | b'<' | b'>' | b'[' | b'\\' | b']' | b'_' | b'`' | b'~'
     )
 }
 
