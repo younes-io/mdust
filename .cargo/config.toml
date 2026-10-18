@@ -1,0 +1,4 @@
+# simd128 ships in every engine mdust targets (V8, SpiderMonkey, JSC, wasmtime);
+# the simd128 scanners in inline.rs and utils.rs are gated on this feature.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+simd128"]

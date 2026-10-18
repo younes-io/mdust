@@ -94,9 +94,50 @@ fn word(b: &[u8], i: usize) -> u64 {
     u64::from_le_bytes(b[i..i + 8].try_into().unwrap())
 }
 
-/// Index of the first byte in `b[from..]` that is `&`, `<`, `>` or `"`.
+/// Index of the first byte in `b[i..]` that is `&`, `<`, `>` or `"`, or `b.len()`.
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 #[inline]
 fn next_escape(b: &[u8], mut i: usize) -> usize {
+    use core::arch::wasm32::*;
+    let n = b.len();
+    if n < 16 {
+        return next_escape_swar(b, i);
+    }
+    let p = b.as_ptr();
+    let (a, l, g, q) = (u8x16_splat(b'&'), u8x16_splat(b'<'), u8x16_splat(b'>'), u8x16_splat(b'"'));
+    let cls = |off: usize| -> u32 {
+        // Callers keep off + 16 <= n, so the load stays inside b.
+        let v = unsafe { v128_load(p.add(off) as *const v128) };
+        let m = v128_or(v128_or(u8x16_eq(v, a), u8x16_eq(v, l)), v128_or(u8x16_eq(v, g), u8x16_eq(v, q)));
+        u8x16_bitmask(m) as u32
+    };
+    while i + 16 <= n {
+        let m = cls(i);
+        if m != 0 {
+            return i + m.trailing_zeros() as usize;
+        }
+        i += 16;
+    }
+    if i < n {
+        // Overlapping tail: reload the last 16 bytes and drop the bits already scanned.
+        let off = n - 16;
+        let m = cls(off) >> (i - off);
+        if m != 0 {
+            return i + m.trailing_zeros() as usize;
+        }
+    }
+    n
+}
+
+/// Index of the first byte in `b[i..]` that is `&`, `<`, `>` or `"`, or `b.len()`.
+#[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+#[inline]
+fn next_escape(b: &[u8], i: usize) -> usize {
+    next_escape_swar(b, i)
+}
+
+#[inline]
+fn next_escape_swar(b: &[u8], mut i: usize) -> usize {
     while i + 8 <= b.len() {
         let w = word(b, i);
         let m = swar_eq(w, b'&') | swar_eq(w, b'<') | swar_eq(w, b'>') | swar_eq(w, b'"');

@@ -115,6 +115,77 @@ fn is_terminator(c: u8) -> bool {
     TERMINATOR[c as usize]
 }
 
+/// First index in `pos..max` holding a terminator byte, or `max`.
+#[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+#[inline(always)]
+fn find_terminator(s: &[u8], pos: usize, max: usize) -> usize {
+    pos + s[pos..max].iter().position(|&c| is_terminator(c)).unwrap_or(max - pos)
+}
+
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+mod simd_text {
+    use super::is_terminator_slow;
+    use core::arch::wasm32::*;
+
+    // Nibble classifier: `c` is a terminator iff LOT[c & 15] & HIT[c >> 4] != 0.
+    // Every terminator is ASCII with high nibble 0 or 2..7, so HIT gives those
+    // seven nibbles one bit each and leaves the rest zero.
+    static HIT: [u8; 16] = [1, 0, 2, 4, 8, 16, 32, 64, 0, 0, 0, 0, 0, 0, 0, 0];
+    static LOT: [u8; 16] = {
+        let mut t = [0u8; 16];
+        let mut c = 0;
+        while c < 128 {
+            if is_terminator_slow(c as u8) {
+                t[c & 15] |= HIT[c >> 4];
+            }
+            c += 1;
+        }
+        t
+    };
+
+    #[inline(always)]
+    unsafe fn cls16(p: *const u8, lot: v128, hit: v128, m0f: v128) -> u32 {
+        let v = v128_load(p as *const v128);
+        let lo = i8x16_swizzle(lot, v128_and(v, m0f));
+        let hi = i8x16_swizzle(hit, v128_and(u16x8_shr(v, 4), m0f));
+        u8x16_bitmask(u8x16_ne(v128_and(lo, hi), u8x16_splat(0))) as u32
+    }
+
+    /// First index in `pos..max` holding a terminator byte, or `max`. Loads
+    /// may cover bytes outside `pos..max` but never outside `s`.
+    #[inline]
+    pub fn find_terminator(s: &[u8], pos: usize, max: usize) -> usize {
+        let mut i = pos;
+        let p = s.as_ptr();
+        let n = s.len();
+        unsafe {
+            let lot = v128_load(LOT.as_ptr() as *const v128);
+            let hit = v128_load(HIT.as_ptr() as *const v128);
+            let m0f = u8x16_splat(0x0f);
+            while i < max && i + 16 <= n {
+                let m = cls16(p.add(i), lot, hit, m0f);
+                if m != 0 {
+                    return (i + m.trailing_zeros() as usize).min(max);
+                }
+                i += 16;
+            }
+            if i < max {
+                if n >= 16 {
+                    let off = n - 16;
+                    let m = cls16(p.add(off), lot, hit, m0f) >> (i - off);
+                    return if m != 0 { (i + m.trailing_zeros() as usize).min(max) } else { max };
+                }
+                while i < max && !is_terminator_slow(s[i]) {
+                    i += 1;
+                }
+            }
+        }
+        i
+    }
+}
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+use simd_text::find_terminator;
+
 const fn is_terminator_slow(c: u8) -> bool {
     matches!(
         c,
@@ -364,7 +435,7 @@ impl<'a> Inline<'a> {
     fn rule_text(&mut self, silent: bool) -> bool {
         let mut pos = self.pos;
         let max = self.pos_max;
-        pos += self.s[pos..max].iter().position(|&c| is_terminator(c)).unwrap_or(max - pos);
+        pos = find_terminator(self.s, pos, max);
         if pos == self.pos {
             return false;
         }

@@ -9,7 +9,7 @@ lto = true
 codegen-units = 1
 panic = "abort"
 
-# opt-level 3 costs about 30 KB of wasm for about 6% throughput; the size budget wins.
+# opt-level 3 buys about 5% throughput for about 36 KB of wasm; speed wins over size (U7).
 [profile.wasm]
 inherits = "release"
-opt-level = "s"
+opt-level = 3

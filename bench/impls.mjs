@@ -1,11 +1,14 @@
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import MarkdownIt from 'markdown-it';
 import * as mdwasm from 'markdown-wasm';
 
 const require = createRequire(import.meta.url);
 
-export const MDUST_PKG = new URL('../crates/mdust-wasm/pkg/mdust_wasm.js', import.meta.url).pathname;
+export const MDUST_PKG = process.env.MDUST_PKG
+  ? resolve(process.env.MDUST_PKG, 'mdust_wasm.js')
+  : new URL('../crates/mdust-wasm/pkg/mdust_wasm.js', import.meta.url).pathname;
 
 const oracle = () => {
   const md = new MarkdownIt('default', { html: true });
