@@ -157,7 +157,7 @@ pub fn parse(src: &str) -> Blocks {
 impl<'a> State<'a> {
     fn new(src: &'a str) -> Self {
         let s = src.as_bytes();
-        let n = s.len() / 32 + 2;
+        let n = count_byte(b'\n', s) + 2;
         let mut st = State {
             src,
             s,
@@ -180,46 +180,33 @@ impl<'a> State<'a> {
             },
         };
         let len = s.len();
-        let (mut start, mut indent, mut offset, mut indent_found) = (0usize, 0usize, 0i32, false);
-        let mut pos = 0;
-        while pos < len {
-            let ch = s[pos];
-            if !indent_found {
-                if is_space(ch) {
-                    indent += 1;
-                    if ch == b'\t' {
-                        offset += 4 - offset % 4;
-                    } else {
-                        offset += 1;
-                    }
-                    pos += 1;
-                    continue;
-                } else {
-                    indent_found = true;
-                }
+        let mut start = 0;
+        while start < len {
+            let (mut pos, mut offset) = (start, 0i32);
+            while pos < len && is_space(s[pos]) {
+                offset += if s[pos] == b'\t' { 4 - offset % 4 } else { 1 };
+                pos += 1;
             }
-            if ch == b'\n' || pos == len - 1 {
-                if ch != b'\n' {
-                    pos += 1;
-                }
-                st.b_marks.push(start);
-                st.e_marks.push(pos);
-                st.t_shift.push(indent);
-                st.s_count.push(offset);
-                st.bs_count.push(0);
-                indent_found = false;
-                indent = 0;
-                offset = 0;
-                start = pos + 1;
+            if pos == len {
+                break;
             }
-            pos += 1;
+            let indent = pos - start;
+            let eol = match find_byte(b'\n', &s[pos..]) {
+                Some(i) => pos + i,
+                None => len,
+            };
+            st.b_marks.push(start);
+            st.e_marks.push(eol);
+            st.t_shift.push(indent);
+            st.s_count.push(offset);
+            start = eol + 1;
         }
         st.b_marks.push(len);
         st.e_marks.push(len);
         st.t_shift.push(0);
         st.s_count.push(0);
-        st.bs_count.push(0);
         st.line_max = st.b_marks.len() - 1;
+        st.bs_count = vec![0; st.line_max + 1];
         st
     }
 
@@ -1376,4 +1363,30 @@ fn escaped_split(s: &str) -> Vec<std::borrow::Cow<'_, str>> {
         result.push(Cow::Borrowed(&s[last..]));
     }
     result
+}
+
+#[doc(hidden)]
+pub fn profile_lines(src: &str) -> usize {
+    State::new(src).line_max
+}
+
+/// Word-at-a-time scan, since this runs over every byte of the input.
+pub fn find_byte(c: u8, s: &[u8]) -> Option<usize> {
+    const LO: u64 = 0x0101_0101_0101_0101;
+    const HI: u64 = 0x8080_8080_8080_8080;
+    let pat = LO * c as u64;
+    let mut i = 0;
+    while i + 8 <= s.len() {
+        let w = u64::from_le_bytes(s[i..i + 8].try_into().unwrap()) ^ pat;
+        let z = w.wrapping_sub(LO) & !w & HI;
+        if z != 0 {
+            return Some(i + (z.trailing_zeros() / 8) as usize);
+        }
+        i += 8;
+    }
+    s[i..].iter().position(|&b| b == c).map(|p| i + p)
+}
+
+fn count_byte(c: u8, s: &[u8]) -> usize {
+    s.iter().filter(|&&b| b == c).count()
 }

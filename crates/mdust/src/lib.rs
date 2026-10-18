@@ -9,7 +9,7 @@ mod utils;
 
 pub fn render(src: &str) -> String {
     let normalized;
-    let src = if src.bytes().any(|c| c == b'\r' || c == 0) {
+    let src = if utils::needs_normalize(src.as_bytes()) {
         normalized = src.replace("\r\n", "\n").replace('\r', "\n").replace('\0', "\u{FFFD}");
         normalized.as_str()
     } else {
@@ -36,4 +36,9 @@ pub fn profile_inline_parse(src: &str) -> usize {
         }
     }
     n
+}
+
+#[doc(hidden)]
+pub fn profile_lines(src: &str) -> usize {
+    block::profile_lines(src)
 }

@@ -9,6 +9,7 @@ fn time(name: &str, files: &[String], f: impl Fn(&str) -> usize) {
 }
 fn main() {
     let files: Vec<String> = std::env::args().skip(1).map(|p| std::fs::read_to_string(p).unwrap()).collect();
+    time("lines", &files, mdust::profile_lines);
     time("blocks", &files, mdust::profile_blocks);
     time("blocks+inline", &files, mdust::profile_inline_parse);
     time("full", &files, |s| mdust::render(s).len());

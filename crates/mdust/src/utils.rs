@@ -78,25 +78,68 @@ static NEEDS_ESCAPE: [bool; 256] = {
     t
 };
 
+const LO: u64 = 0x0101_0101_0101_0101;
+const HI: u64 = 0x8080_8080_8080_8080;
+
+/// High bit set in each byte of `w` that equals `c`.
+#[inline(always)]
+pub fn swar_eq(w: u64, c: u8) -> u64 {
+    let x = w ^ (LO * c as u64);
+    x.wrapping_sub(LO) & !x & HI
+}
+
+#[inline(always)]
+fn word(b: &[u8], i: usize) -> u64 {
+    u64::from_le_bytes(b[i..i + 8].try_into().unwrap())
+}
+
+/// Index of the first byte in `b[from..]` that is `&`, `<`, `>` or `"`.
+#[inline]
+fn next_escape(b: &[u8], mut i: usize) -> usize {
+    while i + 8 <= b.len() {
+        let w = word(b, i);
+        let m = swar_eq(w, b'&') | swar_eq(w, b'<') | swar_eq(w, b'>') | swar_eq(w, b'"');
+        if m != 0 {
+            return i + (m.trailing_zeros() / 8) as usize;
+        }
+        i += 8;
+    }
+    while i < b.len() && !NEEDS_ESCAPE[b[i] as usize] {
+        i += 1;
+    }
+    i
+}
+
 pub fn escape_html_into(out: &mut String, s: &str) {
     let b = s.as_bytes();
     let mut last = 0;
-    for (i, &c) in b.iter().enumerate() {
-        if !NEEDS_ESCAPE[c as usize] {
-            continue;
-        }
-        let rep = match c {
+    let mut i = next_escape(b, 0);
+    while i < b.len() {
+        let rep = match b[i] {
             b'&' => "&amp;",
             b'<' => "&lt;",
             b'>' => "&gt;",
-            b'"' => "&quot;",
-            _ => continue,
+            _ => "&quot;",
         };
         out.push_str(&s[last..i]);
         out.push_str(rep);
         last = i + 1;
+        i = next_escape(b, last);
     }
     out.push_str(&s[last..]);
+}
+
+/// Whether the input needs markdown-it's `\r` and NUL normalization.
+pub fn needs_normalize(b: &[u8]) -> bool {
+    let mut i = 0;
+    while i + 8 <= b.len() {
+        let w = word(b, i);
+        if swar_eq(w, b'\r') | swar_eq(w, 0) != 0 {
+            return true;
+        }
+        i += 8;
+    }
+    b[i..].iter().any(|&c| c == b'\r' || c == 0)
 }
 
 pub fn lookup_entity(name: &str) -> Option<&'static str> {

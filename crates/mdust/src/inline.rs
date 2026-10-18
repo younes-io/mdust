@@ -333,7 +333,16 @@ impl<'a> Inline<'a> {
     fn rule_text(&mut self, silent: bool) -> bool {
         let mut pos = self.pos;
         let max = self.pos_max;
-        while pos < max && !is_terminator(self.s[pos]) {
+        let s = self.s;
+        while pos + 8 <= max {
+            let c: &[u8; 8] = s[pos..pos + 8].try_into().unwrap();
+            let hit = c.iter().fold(false, |h, &b| h | is_terminator(b));
+            if hit {
+                break;
+            }
+            pos += 8;
+        }
+        while pos < max && !is_terminator(s[pos]) {
             pos += 1;
         }
         if pos == self.pos {
