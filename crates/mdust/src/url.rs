@@ -506,21 +506,56 @@ fn recode_hostname(u: &Url) -> bool {
         && matches!(u.protocol.as_deref(), None | Some("http:" | "https:" | "mailto:"))
 }
 
-/// True when `normalize_link(url) == url`, so the common relative href skips
-/// `parse`, `encode` and `format` and their allocations. The proof, from those
-/// three functions: every byte is in `encode_keep`, so `encode` is the identity
-/// and nothing is whitespace (`js_trim` is the identity), `%` or non-ASCII. The
-/// leading `[A-Za-z0-9.+-]` run is not followed by `:`, so `parse` finds no
-/// protocol, and without `//` in front it skips the host branch and only cuts
-/// `rest` into pathname, search and hash, which `format` concatenates back in
-/// the original order.
+/// True when `normalize_link(url) == url`, so the common href skips `parse`,
+/// `encode` and `format` and their allocations. The proof, from those three
+/// functions: every byte is in `encode_keep`, so `encode` is the identity and
+/// nothing is whitespace (`js_trim` is the identity), `%` or non-ASCII.
+///
+/// Without a protocol (the leading `[A-Za-z0-9.+-]` run is not followed by
+/// `:`) and without `//` in front, `parse` skips the host branch and only cuts
+/// the string into pathname, search and hash, which `format` concatenates back
+/// in the original order.
+///
+/// With a protocol and `//`, `parse` takes the host branch. That is the
+/// identity when the authority (up to the first `/`, `?` or `#`) is
+/// `[auth@]host[:port]` with a non-empty auth, a port of one or more digits,
+/// and a host of at most 255 bytes made of `.`-separated labels of at most 63
+/// bytes of `[A-Za-z0-9+_-]`: `parseHost` then cuts off exactly the port,
+/// every label passes `hostnamePartPattern` so nothing is moved into the path,
+/// `to_ascii` and `encode` leave ASCII labels alone, and `format` writes
+/// protocol, `//`, `auth@`, host, `:port` and the rest back in source order.
 fn is_normalized(url: &str) -> bool {
     let b = url.as_bytes();
     if !b.iter().all(|&c| encode_keep(c)) || b.starts_with(b"//") {
         return false;
     }
     let n = b.iter().take_while(|&&c| c.is_ascii_alphanumeric() || matches!(c, b'.' | b'+' | b'-')).count();
-    !(n > 0 && b.get(n) == Some(&b':'))
+    if !(n > 0 && b.get(n) == Some(&b':')) {
+        return true;
+    }
+    let Some(rest) = b[n + 1..].strip_prefix(b"//") else { return false };
+    let end = rest.iter().position(|&c| matches!(c, b'/' | b'?' | b'#')).unwrap_or(rest.len());
+    let authority = &rest[..end];
+    let host = match authority.iter().rposition(|&c| c == b'@') {
+        Some(0) => return false,
+        Some(at) => &authority[at + 1..],
+        None => authority,
+    };
+    let host = match host.iter().position(|&c| c == b':') {
+        Some(i) => {
+            let port = &host[i + 1..];
+            if port.is_empty() || !port.iter().all(u8::is_ascii_digit) {
+                return false;
+            }
+            &host[..i]
+        }
+        None => host,
+    };
+    host.len() <= 255
+        && host.split(|&c| c == b'.').all(|label| {
+            label.len() <= 63
+                && label.iter().all(|&c| c.is_ascii_alphanumeric() || matches!(c, b'+' | b'_' | b'-'))
+        })
 }
 
 pub fn normalize_link(url: String) -> String {
@@ -588,7 +623,20 @@ mod tests {
             "", "//a", "/a", "a:b", "a_b:c", "#x", "?x#y", "#a?b", "ch03-02-data-types.html",
             "mailto:x", "%41", "a%zz", "a b", ".:x", "+:", ":a", "a/b:c", "http://a.b/c", "a//b",
             "\u{e9}", "a\\b", "x?", "x#", " x", "x ",
+            "https://github.com/a/b", "https://u:p@h.io:8080/p?q=1#f", "https://@a/b", "https://a:/b",
+            "https://a:1:2/c", "https://a:x/", "http://a!b.c/d", "https://a;b/c", "https://a'b@c/",
+            "https://a@b@c/d", "https:///x", "https://", "https://:80", "HTTP://A.B/C", "https://a..b/",
+            "mailto:a@b.c", "javascript://a@b", "javascript://a:/b", "http:foo", "git+ssh://a_b.c/d",
+            "https://a.b?x#y/z", "https://a.b#x?y", "https://a/b:c@d",
         ];
+        let label = |n: usize| ["https://", &"a".repeat(n), ".b/c"].concat();
+        for s in [label(63), label(64), label(255), label(300)] {
+            assert_eq!(normalize_link(s.clone()), normalize_link_slow(&s), "{s:?}");
+        }
+        let hosts = |n: usize| ["https://", &["ab."].concat().repeat(n), "c/"].concat();
+        for s in [hosts(84), hosts(85), hosts(86)] {
+            assert_eq!(normalize_link(s.clone()), normalize_link_slow(&s), "{s:?}");
+        }
         for s in edge {
             assert_eq!(normalize_link(s.to_string()), normalize_link_slow(s), "{s:?}");
         }
@@ -601,9 +649,9 @@ mod tests {
             seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
             seed >> 8
         };
-        for _ in 0..500 {
+        for i in 0..4000 {
             let len = (next() % 24) as usize;
-            let mut s = String::new();
+            let mut s = String::from(["", "https://", "http://u@", "mailto:", "x://a:1"][i % 5]);
             for _ in 0..len {
                 let r = next();
                 if r % 29 == 0 {
