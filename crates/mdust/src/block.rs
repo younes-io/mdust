@@ -456,13 +456,17 @@ impl<'a> State<'a> {
             }
             let ok = self.table(line, end_line, false)
                 || self.code(line, end_line)
-                || self.fence(line, end_line, false)
-                || self.blockquote(line, end_line, false)
-                || self.hr(line, end_line, false)
-                || self.list(line, end_line, false)
-                || self.reference(line, end_line, false)
-                || self.html_block(line, end_line, false)
-                || self.heading(line, end_line, false)
+                || match self.first_byte(line) {
+                    b'`' | b'~' => self.fence(line, end_line, false),
+                    b'>' => self.blockquote(line, end_line, false),
+                    b'*' | b'-' => self.hr(line, end_line, false) || self.list(line, end_line, false),
+                    b'_' => self.hr(line, end_line, false),
+                    b'+' | b'0'..=b'9' => self.list(line, end_line, false),
+                    b'[' => self.reference(line, end_line, false),
+                    b'<' => self.html_block(line, end_line, false),
+                    b'#' => self.heading(line, end_line, false),
+                    _ => false,
+                }
                 || self.lheading_or_paragraph(line, end_line);
             debug_assert!(ok);
             self.tight = !has_empty_lines;
@@ -478,28 +482,47 @@ impl<'a> State<'a> {
         }
     }
 
+    /// First byte of `line` after its indent, 0 when the line is blank.
+    #[inline]
+    fn first_byte(&self, line: usize) -> u8 {
+        self.ch(self.b_marks[line] + self.t_shift[line])
+    }
+
+    /// Every rule but `table` rejects on the first byte before touching state,
+    /// so the chain dispatches on that byte and keeps the original rule order
+    /// within each arm.
     fn terminates(&mut self, chain: Chain, line: usize, end: usize) -> bool {
+        let c = self.first_byte(line);
         match chain {
             Chain::Paragraph => {
                 self.table(line, end, true)
-                    || self.fence(line, end, true)
-                    || self.blockquote(line, end, true)
-                    || self.hr(line, end, true)
-                    || self.list(line, end, true)
-                    || self.html_block(line, end, true)
-                    || self.heading(line, end, true)
+                    || match c {
+                        b'`' | b'~' => self.fence(line, end, true),
+                        b'>' => self.blockquote(line, end, true),
+                        b'*' | b'-' => self.hr(line, end, true) || self.list(line, end, true),
+                        b'_' => self.hr(line, end, true),
+                        b'+' | b'0'..=b'9' => self.list(line, end, true),
+                        b'<' => self.html_block(line, end, true),
+                        b'#' => self.heading(line, end, true),
+                        _ => false,
+                    }
             }
-            Chain::Blockquote => {
-                self.fence(line, end, true)
-                    || self.blockquote(line, end, true)
-                    || self.hr(line, end, true)
-                    || self.list(line, end, true)
-                    || self.html_block(line, end, true)
-                    || self.heading(line, end, true)
-            }
-            Chain::List => {
-                self.fence(line, end, true) || self.blockquote(line, end, true) || self.hr(line, end, true)
-            }
+            Chain::Blockquote => match c {
+                b'`' | b'~' => self.fence(line, end, true),
+                b'>' => self.blockquote(line, end, true),
+                b'*' | b'-' => self.hr(line, end, true) || self.list(line, end, true),
+                b'_' => self.hr(line, end, true),
+                b'+' | b'0'..=b'9' => self.list(line, end, true),
+                b'<' => self.html_block(line, end, true),
+                b'#' => self.heading(line, end, true),
+                _ => false,
+            },
+            Chain::List => match c {
+                b'`' | b'~' => self.fence(line, end, true),
+                b'>' => self.blockquote(line, end, true),
+                b'*' | b'-' | b'_' => self.hr(line, end, true),
+                _ => false,
+            },
         }
     }
 
