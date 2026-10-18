@@ -212,7 +212,9 @@ pub fn parse(src: &str) -> Blocks<'_> {
 impl<'a> State<'a> {
     fn new(src: &'a str) -> Self {
         let s = src.as_bytes();
-        let n = count_byte(b'\n', s) + 2;
+        // Capacity guess. Counting newlines first costs a scan of the whole
+        // source, more than the few amortized grows a miss costs.
+        let n = s.len() / 24 + 8;
         let mut st = State {
             src,
             s,
@@ -256,14 +258,15 @@ impl<'a> State<'a> {
             st.e_marks.push(eol);
             st.t_shift.push(indent);
             st.s_count.push(offset);
+            st.bs_count.push(0);
             start = eol + 1;
         }
         st.b_marks.push(len);
         st.e_marks.push(len);
         st.t_shift.push(0);
         st.s_count.push(0);
+        st.bs_count.push(0);
         st.line_max = st.b_marks.len() - 1;
-        st.bs_count = vec![0; st.line_max + 1];
         st
     }
 
@@ -1467,6 +1470,3 @@ pub fn find_byte(c: u8, s: &[u8]) -> Option<usize> {
     s[i..].iter().position(|&b| b == c).map(|p| i + p)
 }
 
-fn count_byte(c: u8, s: &[u8]) -> usize {
-    s.iter().filter(|&&b| b == c).count()
-}
