@@ -1448,7 +1448,6 @@ fn escaped_split(s: &str) -> Vec<alloc::borrow::Cow<'_, str>> {
     result
 }
 
-/// Word-at-a-time scan, since this runs over every byte of the input.
 /// Position of the first newline in `s`, and whether a CR or NUL was seen
 /// on the way (through the end of the word holding that newline).
 fn find_newline(s: &[u8]) -> (Option<usize>, bool) {
