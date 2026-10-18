@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { load } from './impls.mjs';
 import { fixtureSuites } from './fixtures.mjs';
+import { loadCorpus } from './corpora.mjs';
 
 const { values: args } = parseArgs({
   options: {
@@ -30,6 +31,8 @@ function mulberry32(a) {
 
 const fixtureInputs = Object.values(fixtureSuites).flatMap((cases) => cases().map((c) => c.src));
 const fixtureLines = fixtureInputs.flatMap((s) => s.split('\n'));
+const corpusLines = ['node-api', 'mdn-js', 'k8s-concepts', 'awesome']
+  .flatMap((name) => loadCorpus(name).flatMap((d) => d.src.split('\n')));
 
 const INLINE = [
   '*', '**', '***', '_', '__', '~~', '~', '[', ']', '(', ')', '![', '](', '[x]', '[^1]', '[foo]: /url',
@@ -60,8 +63,12 @@ function makeGen(rand) {
       const i = int(0, fixtureLines.length - 1);
       return fixtureLines.slice(i, i + int(1, 4)).join('\n');
     }
-    if (r < 0.5) return table();
-    if (r < 0.6) return pick(LINES);
+    if (r < 0.5) {
+      const i = int(0, corpusLines.length - 1);
+      return corpusLines.slice(i, i + int(1, 8)).join('\n');
+    }
+    if (r < 0.6) return table();
+    if (r < 0.7) return pick(LINES);
     return Array.from({ length: int(1, 3) }, () => pick(BLOCK_PREFIX) + inline()).join('\n');
   };
   return () => {
