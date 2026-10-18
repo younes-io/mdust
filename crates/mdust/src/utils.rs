@@ -172,18 +172,6 @@ pub fn escape_html_into(out: &mut String, s: &str) {
 }
 
 /// Whether the input needs markdown-it's `\r` and NUL normalization.
-pub fn needs_normalize(b: &[u8]) -> bool {
-    let mut i = 0;
-    while i + 8 <= b.len() {
-        let w = word(b, i);
-        if swar_eq(w, b'\r') | swar_eq(w, 0) != 0 {
-            return true;
-        }
-        i += 8;
-    }
-    b[i..].iter().any(|&c| c == b'\r' || c == 0)
-}
-
 pub fn lookup_entity(name: &str) -> Option<&'static str> {
     let first_name = |k: usize| {
         let off = ENTITY_CHECKPOINTS[k] as usize;

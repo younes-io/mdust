@@ -180,14 +180,22 @@ enum Chain {
     List,
 }
 
+/// One source line. `start` is the first byte, `end` the newline (or EOF),
+/// `t_shift` the bytes of leading whitespace, `s_count` that whitespace in
+/// columns, `bs_count` the column where the parent block's marker ends.
+#[derive(Clone, Copy)]
+struct Line {
+    start: usize,
+    end: usize,
+    t_shift: usize,
+    s_count: i32,
+    bs_count: i32,
+}
+
 struct State<'a> {
     src: &'a str,
     s: &'a [u8],
-    b_marks: Vec<usize>,
-    e_marks: Vec<usize>,
-    t_shift: Vec<usize>,
-    s_count: Vec<i32>,
-    bs_count: Vec<i32>,
+    lines: Vec<Line>,
     blk_indent: i32,
     line: usize,
     line_max: usize,
@@ -200,17 +208,22 @@ struct State<'a> {
     out: Blocks<'a>,
 }
 
-pub fn parse(src: &str) -> Blocks<'_> {
-    let mut st = State::new(src);
+/// Parses `src`, or returns `Err` if the line indexer met a CR or NUL that
+/// markdown-it would normalize first; the caller normalizes and calls again.
+pub fn parse(src: &str) -> Result<Blocks<'_>, ()> {
+    let (mut st, dirty) = State::new(src);
+    if dirty {
+        return Err(());
+    }
     if !src.is_empty() {
         let lm = st.line_max;
         st.tokenize(0, lm);
     }
-    st.out
+    Ok(st.out)
 }
 
 impl<'a> State<'a> {
-    fn new(src: &'a str) -> Self {
+    fn new(src: &'a str) -> (Self, bool) {
         let s = src.as_bytes();
         // Capacity guess. Counting newlines first costs a scan of the whole
         // source, more than the few amortized grows a miss costs.
@@ -218,11 +231,7 @@ impl<'a> State<'a> {
         let mut st = State {
             src,
             s,
-            b_marks: Vec::with_capacity(n),
-            e_marks: Vec::with_capacity(n),
-            t_shift: Vec::with_capacity(n),
-            s_count: Vec::with_capacity(n),
-            bs_count: Vec::with_capacity(n),
+            lines: Vec::with_capacity(n),
             blk_indent: 0,
             line: 0,
             line_max: 0,
@@ -240,6 +249,7 @@ impl<'a> State<'a> {
         };
         let len = s.len();
         let mut start = 0;
+        let mut dirty = false;
         while start < len {
             let (mut pos, mut offset) = (start, 0i32);
             while pos < len && is_space(s[pos]) {
@@ -249,25 +259,24 @@ impl<'a> State<'a> {
             if pos == len {
                 break;
             }
-            let indent = pos - start;
-            let eol = match find_byte(b'\n', &s[pos..]) {
+            let (nl, d) = find_newline(&s[pos..]);
+            dirty |= d;
+            let eol = match nl {
                 Some(i) => pos + i,
                 None => len,
             };
-            st.b_marks.push(start);
-            st.e_marks.push(eol);
-            st.t_shift.push(indent);
-            st.s_count.push(offset);
-            st.bs_count.push(0);
+            st.lines.push(Line {
+                start,
+                end: eol,
+                t_shift: pos - start,
+                s_count: offset,
+                bs_count: 0,
+            });
             start = eol + 1;
         }
-        st.b_marks.push(len);
-        st.e_marks.push(len);
-        st.t_shift.push(0);
-        st.s_count.push(0);
-        st.bs_count.push(0);
-        st.line_max = st.b_marks.len() - 1;
-        st
+        st.lines.push(Line { start: len, end: len, t_shift: 0, s_count: 0, bs_count: 0 });
+        st.line_max = st.lines.len() - 1;
+        (st, dirty)
     }
 
     #[inline]
@@ -308,12 +317,12 @@ impl<'a> State<'a> {
     }
 
     fn is_empty(&self, line: usize) -> bool {
-        self.b_marks[line] + self.t_shift[line] >= self.e_marks[line]
+        self.lines[line].start + self.lines[line].t_shift >= self.lines[line].end
     }
 
     fn skip_empty_lines(&self, mut from: usize) -> usize {
         while from < self.line_max {
-            if self.b_marks[from] + self.t_shift[from] < self.e_marks[from] {
+            if self.lines[from].start + self.lines[from].t_shift < self.lines[from].end {
                 break;
             }
             from += 1;
@@ -370,22 +379,22 @@ impl<'a> State<'a> {
         let mut contiguous = true;
         for line in begin..end {
             let mut line_indent = 0i32;
-            let line_start = self.b_marks[line];
+            let line_start = self.lines[line].start;
             let mut first = line_start;
             let last = if line + 1 < end || keep_last_lf {
-                (self.e_marks[line] + 1).min(slen)
+                (self.lines[line].end + 1).min(slen)
             } else {
-                self.e_marks[line]
+                self.lines[line].end
             };
             while first < last && line_indent < indent {
                 let ch = self.s[first];
                 if is_space(ch) {
                     if ch == b'\t' {
-                        line_indent += 4 - (line_indent + self.bs_count[line]) % 4;
+                        line_indent += 4 - (line_indent + self.lines[line].bs_count) % 4;
                     } else {
                         line_indent += 1;
                     }
-                } else if first - line_start < self.t_shift[line] {
+                } else if first - line_start < self.lines[line].t_shift {
                     line_indent += 1;
                 } else {
                     break;
@@ -447,7 +456,7 @@ impl<'a> State<'a> {
             if line >= end_line {
                 break;
             }
-            if self.s_count[line] < self.blk_indent {
+            if self.lines[line].s_count < self.blk_indent {
                 break;
             }
             if self.level >= MAX_NESTING {
@@ -485,7 +494,7 @@ impl<'a> State<'a> {
     /// First byte of `line` after its indent, 0 when the line is blank.
     #[inline]
     fn first_byte(&self, line: usize) -> u8 {
-        self.ch(self.b_marks[line] + self.t_shift[line])
+        self.ch(self.lines[line].start + self.lines[line].t_shift)
     }
 
     /// Every rule but `table` rejects on the first byte before touching state,
@@ -527,8 +536,8 @@ impl<'a> State<'a> {
     }
 
     fn line_text(&self, line: usize) -> &'a str {
-        let pos = self.b_marks[line] + self.t_shift[line];
-        let max = self.e_marks[line];
+        let pos = self.lines[line].start + self.lines[line].t_shift;
+        let max = self.lines[line].end;
         if pos >= max {
             ""
         } else {
@@ -539,7 +548,7 @@ impl<'a> State<'a> {
     // ---- rules ----
 
     fn code(&mut self, start_line: usize, end_line: usize) -> bool {
-        if self.s_count[start_line] - self.blk_indent < 4 {
+        if self.lines[start_line].s_count - self.blk_indent < 4 {
             return false;
         }
         let mut next = start_line + 1;
@@ -549,7 +558,7 @@ impl<'a> State<'a> {
                 next += 1;
                 continue;
             }
-            if self.s_count[next] - self.blk_indent >= 4 {
+            if self.lines[next].s_count - self.blk_indent >= 4 {
                 next += 1;
                 last = next;
                 continue;
@@ -564,9 +573,9 @@ impl<'a> State<'a> {
     }
 
     fn fence(&mut self, start_line: usize, end_line: usize, silent: bool) -> bool {
-        let mut pos = self.b_marks[start_line] + self.t_shift[start_line];
-        let mut max = self.e_marks[start_line];
-        if self.s_count[start_line] - self.blk_indent >= 4 {
+        let mut pos = self.lines[start_line].start + self.lines[start_line].t_shift;
+        let mut max = self.lines[start_line].end;
+        if self.lines[start_line].s_count - self.blk_indent >= 4 {
             return false;
         }
         if pos + 3 > max {
@@ -596,16 +605,16 @@ impl<'a> State<'a> {
             if next >= end_line {
                 break;
             }
-            pos = self.b_marks[next] + self.t_shift[next];
+            pos = self.lines[next].start + self.lines[next].t_shift;
             mem = pos;
-            max = self.e_marks[next];
-            if pos < max && self.s_count[next] < self.blk_indent {
+            max = self.lines[next].end;
+            if pos < max && self.lines[next].s_count < self.blk_indent {
                 break;
             }
             if self.ch(pos) != marker {
                 continue;
             }
-            if self.s_count[next] - self.blk_indent >= 4 {
+            if self.lines[next].s_count - self.blk_indent >= 4 {
                 continue;
             }
             pos = self.skip_chars(pos, marker);
@@ -619,7 +628,7 @@ impl<'a> State<'a> {
             have_end = true;
             break;
         }
-        let indent = self.s_count[start_line];
+        let indent = self.lines[start_line].s_count;
         self.line = next + have_end as usize;
         let (i0, i1) = self.push_str(params);
         let (c0, c1) = self.get_lines(start_line + 1, next, indent, true);
@@ -630,10 +639,10 @@ impl<'a> State<'a> {
     }
 
     fn blockquote(&mut self, start_line: usize, end_line: usize, silent: bool) -> bool {
-        let mut pos = self.b_marks[start_line] + self.t_shift[start_line];
+        let mut pos = self.lines[start_line].start + self.lines[start_line].t_shift;
         let mut max;
         let old_line_max = self.line_max;
-        if self.s_count[start_line] - self.blk_indent >= 4 {
+        if self.lines[start_line].s_count - self.blk_indent >= 4 {
             return false;
         }
         if self.ch(pos) != b'>' {
@@ -642,25 +651,22 @@ impl<'a> State<'a> {
         if silent {
             return true;
         }
-        let mut old_b_marks = Vec::new();
-        let mut old_bs_count = Vec::new();
-        let mut old_s_count = Vec::new();
-        let mut old_t_shift = Vec::new();
+        let mut old_lines = Vec::new();
         let old_parent = self.parent;
         self.parent = Parent::Blockquote;
         let mut last_line_empty = false;
         let mut next = start_line;
         while next < end_line {
-            let is_outdented = self.s_count[next] < self.blk_indent;
-            pos = self.b_marks[next] + self.t_shift[next];
-            max = self.e_marks[next];
+            let is_outdented = self.lines[next].s_count < self.blk_indent;
+            pos = self.lines[next].start + self.lines[next].t_shift;
+            max = self.lines[next].end;
             if pos >= max {
                 break;
             }
             let c = self.s[pos];
             pos += 1;
             if c == b'>' && !is_outdented {
-                let mut initial = self.s_count[next] + 1;
+                let mut initial = self.lines[next].s_count + 1;
                 let space_after;
                 let mut adjust_tab = false;
                 if self.ch(pos) == b' ' {
@@ -669,7 +675,7 @@ impl<'a> State<'a> {
                     space_after = true;
                 } else if self.ch(pos) == b'\t' {
                     space_after = true;
-                    if (self.bs_count[next] + initial) % 4 == 3 {
+                    if (self.lines[next].bs_count + initial) % 4 == 3 {
                         pos += 1;
                         initial += 1;
                     } else {
@@ -679,13 +685,13 @@ impl<'a> State<'a> {
                     space_after = false;
                 }
                 let mut offset = initial;
-                old_b_marks.push(self.b_marks[next]);
-                self.b_marks[next] = pos;
+                old_lines.push(self.lines[next]);
+                self.lines[next].start = pos;
                 while pos < max {
                     let ch = self.s[pos];
                     if is_space(ch) {
                         if ch == b'\t' {
-                            offset += 4 - (offset + self.bs_count[next] + adjust_tab as i32) % 4;
+                            offset += 4 - (offset + self.lines[next].bs_count + adjust_tab as i32) % 4;
                         } else {
                             offset += 1;
                         }
@@ -695,12 +701,9 @@ impl<'a> State<'a> {
                     pos += 1;
                 }
                 last_line_empty = pos >= max;
-                old_bs_count.push(self.bs_count[next]);
-                self.bs_count[next] = self.s_count[next] + 1 + space_after as i32;
-                old_s_count.push(self.s_count[next]);
-                self.s_count[next] = offset - initial;
-                old_t_shift.push(self.t_shift[next]);
-                self.t_shift[next] = pos - self.b_marks[next];
+                self.lines[next].bs_count = self.lines[next].s_count + 1 + space_after as i32;
+                self.lines[next].s_count = offset - initial;
+                self.lines[next].t_shift = pos - self.lines[next].start;
                 next += 1;
                 continue;
             }
@@ -710,19 +713,13 @@ impl<'a> State<'a> {
             if self.terminates(Chain::Blockquote, next, end_line) {
                 self.line_max = next;
                 if self.blk_indent != 0 {
-                    old_b_marks.push(self.b_marks[next]);
-                    old_bs_count.push(self.bs_count[next]);
-                    old_t_shift.push(self.t_shift[next]);
-                    old_s_count.push(self.s_count[next]);
-                    self.s_count[next] -= self.blk_indent;
+                    old_lines.push(self.lines[next]);
+                    self.lines[next].s_count -= self.blk_indent;
                 }
                 break;
             }
-            old_b_marks.push(self.b_marks[next]);
-            old_bs_count.push(self.bs_count[next]);
-            old_t_shift.push(self.t_shift[next]);
-            old_s_count.push(self.s_count[next]);
-            self.s_count[next] = -1;
+            old_lines.push(self.lines[next]);
+            self.lines[next].s_count = -1;
             next += 1;
         }
         let old_indent = self.blk_indent;
@@ -732,22 +729,17 @@ impl<'a> State<'a> {
         self.push(Kind::BlockquoteClose);
         self.line_max = old_line_max;
         self.parent = old_parent;
-        for i in 0..old_t_shift.len() {
-            self.b_marks[i + start_line] = old_b_marks[i];
-            self.t_shift[i + start_line] = old_t_shift[i];
-            self.s_count[i + start_line] = old_s_count[i];
-            self.bs_count[i + start_line] = old_bs_count[i];
-        }
+        self.lines[start_line..start_line + old_lines.len()].copy_from_slice(&old_lines);
         self.blk_indent = old_indent;
         true
     }
 
     fn hr(&mut self, start_line: usize, _end: usize, silent: bool) -> bool {
-        let max = self.e_marks[start_line];
-        if self.s_count[start_line] - self.blk_indent >= 4 {
+        let max = self.lines[start_line].end;
+        if self.lines[start_line].s_count - self.blk_indent >= 4 {
             return false;
         }
-        let mut pos = self.b_marks[start_line] + self.t_shift[start_line];
+        let mut pos = self.lines[start_line].start + self.lines[start_line].t_shift;
         let marker = self.ch(pos);
         pos += 1;
         if marker != b'*' && marker != b'-' && marker != b'_' {
@@ -776,8 +768,8 @@ impl<'a> State<'a> {
     }
 
     fn skip_bullet_marker(&self, line: usize) -> Option<usize> {
-        let max = self.e_marks[line];
-        let mut pos = self.b_marks[line] + self.t_shift[line];
+        let max = self.lines[line].end;
+        let mut pos = self.lines[line].start + self.lines[line].t_shift;
         let marker = self.ch(pos);
         pos += 1;
         if marker != b'*' && marker != b'-' && marker != b'+' {
@@ -790,8 +782,8 @@ impl<'a> State<'a> {
     }
 
     fn skip_ordered_marker(&self, line: usize) -> Option<usize> {
-        let start = self.b_marks[line] + self.t_shift[line];
-        let max = self.e_marks[line];
+        let start = self.lines[line].start + self.lines[line].t_shift;
+        let max = self.lines[line].end;
         let mut pos = start;
         if pos + 1 >= max {
             return None;
@@ -842,17 +834,17 @@ impl<'a> State<'a> {
     fn list(&mut self, start_line: usize, end_line: usize, silent: bool) -> bool {
         let mut next = start_line;
         let mut tight = true;
-        if self.s_count[next] - self.blk_indent >= 4 {
+        if self.lines[next].s_count - self.blk_indent >= 4 {
             return false;
         }
         if self.list_indent >= 0
-            && self.s_count[next] - self.list_indent >= 4
-            && self.s_count[next] < self.blk_indent
+            && self.lines[next].s_count - self.list_indent >= 4
+            && self.lines[next].s_count < self.blk_indent
         {
             return false;
         }
         let mut is_terminating_paragraph = false;
-        if silent && self.parent == Parent::Paragraph && self.s_count[next] >= self.blk_indent {
+        if silent && self.parent == Parent::Paragraph && self.lines[next].s_count >= self.blk_indent {
             is_terminating_paragraph = true;
         }
         let is_ordered;
@@ -861,7 +853,7 @@ impl<'a> State<'a> {
         if let Some(p) = self.skip_ordered_marker(next) {
             pos_after = p;
             is_ordered = true;
-            let start = self.b_marks[next] + self.t_shift[next];
+            let start = self.lines[next].start + self.lines[next].t_shift;
             marker_value = self.src[start..p - 1].parse().unwrap_or(0);
             if is_terminating_paragraph && marker_value != 1 {
                 return false;
@@ -872,7 +864,7 @@ impl<'a> State<'a> {
         } else {
             return false;
         }
-        if is_terminating_paragraph && self.skip_spaces(pos_after) >= self.e_marks[next] {
+        if is_terminating_paragraph && self.skip_spaces(pos_after) >= self.lines[next].end {
             return false;
         }
         if silent {
@@ -890,13 +882,13 @@ impl<'a> State<'a> {
         self.parent = Parent::List;
         while next < end_line {
             let mut pos = pos_after;
-            let max = self.e_marks[next];
-            let initial = self.s_count[next] + (pos_after - (self.b_marks[next] + self.t_shift[next])) as i32;
+            let max = self.lines[next].end;
+            let initial = self.lines[next].s_count + (pos_after - (self.lines[next].start + self.lines[next].t_shift)) as i32;
             let mut offset = initial;
             while pos < max {
                 let ch = self.s[pos];
                 if ch == b'\t' {
-                    offset += 4 - (offset + self.bs_count[next]) % 4;
+                    offset += 4 - (offset + self.lines[next].bs_count) % 4;
                 } else if ch == b' ' {
                     offset += 1;
                 } else {
@@ -912,14 +904,14 @@ impl<'a> State<'a> {
             let indent = initial + indent_after;
             self.push(Kind::ListItemOpen);
             let old_tight = self.tight;
-            let old_t_shift = self.t_shift[next];
-            let old_s_count = self.s_count[next];
+            let old_t_shift = self.lines[next].t_shift;
+            let old_s_count = self.lines[next].s_count;
             let old_list_indent = self.list_indent;
             self.list_indent = self.blk_indent;
             self.blk_indent = indent;
             self.tight = true;
-            self.t_shift[next] = content_start - self.b_marks[next];
-            self.s_count[next] = offset;
+            self.lines[next].t_shift = content_start - self.lines[next].start;
+            self.lines[next].s_count = offset;
             if content_start >= max && self.is_empty(next + 1) {
                 self.line = (self.line + 2).min(end_line);
             } else {
@@ -931,18 +923,18 @@ impl<'a> State<'a> {
             prev_empty_end = (self.line - next) > 1 && self.is_empty(self.line - 1);
             self.blk_indent = self.list_indent;
             self.list_indent = old_list_indent;
-            self.t_shift[next] = old_t_shift;
-            self.s_count[next] = old_s_count;
+            self.lines[next].t_shift = old_t_shift;
+            self.lines[next].s_count = old_s_count;
             self.tight = old_tight;
             self.push(Kind::ListItemClose);
             next = self.line;
             if next >= end_line {
                 break;
             }
-            if self.s_count[next] < self.blk_indent {
+            if self.lines[next].s_count < self.blk_indent {
                 break;
             }
-            if self.s_count[next] - self.blk_indent >= 4 {
+            if self.lines[next].s_count - self.blk_indent >= 4 {
                 break;
             }
             if self.terminates(Chain::List, next, end_line) {
@@ -977,7 +969,7 @@ impl<'a> State<'a> {
     }
 
     fn line_end(&self, line: usize) -> usize {
-        (self.e_marks[line] + 1).min(self.s.len())
+        (self.lines[line].end + 1).min(self.s.len())
     }
 
     fn next_line_pos(&mut self, next: usize) -> Option<usize> {
@@ -986,10 +978,10 @@ impl<'a> State<'a> {
             return None;
         }
         let mut cont = false;
-        if self.s_count[next] - self.blk_indent > 3 {
+        if self.lines[next].s_count - self.blk_indent > 3 {
             cont = true;
         }
-        if self.s_count[next] < 0 {
+        if self.lines[next].s_count < 0 {
             cont = true;
         }
         if !cont {
@@ -1001,15 +993,15 @@ impl<'a> State<'a> {
                 return None;
             }
         }
-        Some(self.b_marks[next] + self.t_shift[next])
+        Some(self.lines[next].start + self.lines[next].t_shift)
     }
 
     fn reference(&mut self, start_line: usize, _end: usize, silent: bool) -> bool {
         let s = self.s;
         let src = self.src;
-        let mut pos = self.b_marks[start_line] + self.t_shift[start_line];
+        let mut pos = self.lines[start_line].start + self.lines[start_line].t_shift;
         let mut next = start_line + 1;
-        if self.s_count[start_line] - self.blk_indent >= 4 {
+        if self.lines[start_line].s_count - self.blk_indent >= 4 {
             return false;
         }
         if self.ch(pos) != b'[' {
@@ -1142,14 +1134,14 @@ impl<'a> State<'a> {
     }
 
     fn html_block(&mut self, start_line: usize, end_line: usize, silent: bool) -> bool {
-        if self.s_count[start_line] - self.blk_indent >= 4 {
+        if self.lines[start_line].s_count - self.blk_indent >= 4 {
             return false;
         }
-        let pos = self.b_marks[start_line] + self.t_shift[start_line];
+        let pos = self.lines[start_line].start + self.lines[start_line].t_shift;
         if self.ch(pos) != b'<' {
             return false;
         }
-        let line_text = &self.src[pos..self.e_marks[start_line]];
+        let line_text = &self.src[pos..self.lines[start_line].end];
         let Some(seq) = html::block_sequence(line_text) else { return false };
         if silent {
             return seq != 6;
@@ -1158,7 +1150,7 @@ impl<'a> State<'a> {
         let ends_on_blank = seq >= 5;
         if !html::block_sequence_closes(seq, line_text) {
             while next < end_line {
-                if self.s_count[next] < self.blk_indent && (ends_on_blank || !self.is_empty(next)) {
+                if self.lines[next].s_count < self.blk_indent && (ends_on_blank || !self.is_empty(next)) {
                     break;
                 }
                 let lt = self.line_text(next);
@@ -1179,9 +1171,9 @@ impl<'a> State<'a> {
     }
 
     fn heading(&mut self, start_line: usize, _end: usize, silent: bool) -> bool {
-        let mut pos = self.b_marks[start_line] + self.t_shift[start_line];
-        let mut max = self.e_marks[start_line];
-        if self.s_count[start_line] - self.blk_indent >= 4 {
+        let mut pos = self.lines[start_line].start + self.lines[start_line].t_shift;
+        let mut max = self.lines[start_line].end;
+        if self.lines[start_line].s_count - self.blk_indent >= 4 {
             return false;
         }
         if self.ch(pos) != b'#' || pos >= max {
@@ -1218,19 +1210,19 @@ impl<'a> State<'a> {
     /// and when no marker is found its `next` is the paragraph's `next`. One
     /// walk serves both, so each line is classified once.
     fn lheading_or_paragraph(&mut self, start_line: usize, end_line: usize) -> bool {
-        let may_head = self.s_count[start_line] - self.blk_indent < 4;
+        let may_head = self.lines[start_line].s_count - self.blk_indent < 4;
         let old_parent = self.parent;
         self.parent = Parent::Paragraph;
         let mut level = 0u8;
         let mut next = start_line + 1;
         while next < end_line && !self.is_empty(next) {
-            if self.s_count[next] - self.blk_indent > 3 {
+            if self.lines[next].s_count - self.blk_indent > 3 {
                 next += 1;
                 continue;
             }
-            if may_head && self.s_count[next] >= self.blk_indent {
-                let mut pos = self.b_marks[next] + self.t_shift[next];
-                let max = self.e_marks[next];
+            if may_head && self.lines[next].s_count >= self.blk_indent {
+                let mut pos = self.lines[next].start + self.lines[next].t_shift;
+                let max = self.lines[next].end;
                 if pos < max {
                     let marker = self.s[pos];
                     if marker == b'-' || marker == b'=' {
@@ -1243,7 +1235,7 @@ impl<'a> State<'a> {
                     }
                 }
             }
-            if self.s_count[next] < 0 {
+            if self.lines[next].s_count < 0 {
                 next += 1;
                 continue;
             }
@@ -1274,14 +1266,14 @@ impl<'a> State<'a> {
             return false;
         }
         let mut next = start_line + 1;
-        if self.s_count[next] < self.blk_indent {
+        if self.lines[next].s_count < self.blk_indent {
             return false;
         }
-        if self.s_count[next] - self.blk_indent >= 4 {
+        if self.lines[next].s_count - self.blk_indent >= 4 {
             return false;
         }
-        let mut pos = self.b_marks[next] + self.t_shift[next];
-        let em = self.e_marks[next];
+        let mut pos = self.lines[next].start + self.lines[next].t_shift;
+        let em = self.lines[next].end;
         if pos >= em {
             return false;
         }
@@ -1338,7 +1330,7 @@ impl<'a> State<'a> {
         if !header.contains('|') {
             return false;
         }
-        if self.s_count[start_line] - self.blk_indent >= 4 {
+        if self.lines[start_line].s_count - self.blk_indent >= 4 {
             return false;
         }
         let mut columns = escaped_split(header);
@@ -1367,7 +1359,7 @@ impl<'a> State<'a> {
         let mut autocompleted: i64 = 0;
         next = start_line + 2;
         while next < end_line {
-            if self.s_count[next] < self.blk_indent {
+            if self.lines[next].s_count < self.blk_indent {
                 break;
             }
             if self.terminates(Chain::Blockquote, next, end_line) {
@@ -1377,7 +1369,7 @@ impl<'a> State<'a> {
             if lt.is_empty() {
                 break;
             }
-            if self.s_count[next] - self.blk_indent >= 4 {
+            if self.lines[next].s_count - self.blk_indent >= 4 {
                 break;
             }
             let mut columns = escaped_split(lt);
@@ -1457,19 +1449,33 @@ fn escaped_split(s: &str) -> Vec<alloc::borrow::Cow<'_, str>> {
 }
 
 /// Word-at-a-time scan, since this runs over every byte of the input.
-pub fn find_byte(c: u8, s: &[u8]) -> Option<usize> {
+/// Position of the first newline in `s`, and whether a CR or NUL was seen
+/// on the way (through the end of the word holding that newline).
+fn find_newline(s: &[u8]) -> (Option<usize>, bool) {
     const LO: u64 = 0x0101_0101_0101_0101;
     const HI: u64 = 0x8080_8080_8080_8080;
-    let pat = LO * c as u64;
+    const NL: u64 = LO * b'\n' as u64;
+    const CR: u64 = LO * b'\r' as u64;
+    let mut dirty = 0u64;
     let mut i = 0;
     while i + 8 <= s.len() {
-        let w = u64::from_le_bytes(s[i..i + 8].try_into().unwrap()) ^ pat;
-        let z = w.wrapping_sub(LO) & !w & HI;
+        let w = u64::from_le_bytes(s[i..i + 8].try_into().unwrap());
+        let zero = |x: u64| x.wrapping_sub(LO) & !x & HI;
+        dirty |= zero(w ^ CR) | zero(w);
+        let z = zero(w ^ NL);
         if z != 0 {
-            return Some(i + (z.trailing_zeros() / 8) as usize);
+            return (Some(i + (z.trailing_zeros() / 8) as usize), dirty != 0);
         }
         i += 8;
     }
-    s[i..].iter().position(|&b| b == c).map(|p| i + p)
+    let mut d = dirty != 0;
+    for (k, &b) in s[i..].iter().enumerate() {
+        if b == b'\n' {
+            return (Some(i + k), d);
+        }
+        d |= b == b'\r' || b == 0;
+    }
+    (None, d)
 }
+
 
