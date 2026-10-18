@@ -167,6 +167,7 @@ impl<'a> Inline<'a> {
         scratch.prev = self.prev;
     }
 
+    #[inline]
     pub fn content(&self, t: &IToken) -> &str {
         if t.in_src {
             &self.src[t.a as usize..t.b as usize]
@@ -175,6 +176,7 @@ impl<'a> Inline<'a> {
         }
     }
 
+    #[inline]
     pub fn arena_str(&self, r: (u32, u32)) -> &str {
         &self.arena[r.0 as usize..r.1 as usize]
     }
@@ -343,14 +345,6 @@ impl<'a> Inline<'a> {
         let mut pos = self.pos;
         let max = self.pos_max;
         let s = self.s;
-        while pos + 8 <= max {
-            let c: &[u8; 8] = s[pos..pos + 8].try_into().unwrap();
-            let hit = c.iter().fold(false, |h, &b| h | is_terminator(b));
-            if hit {
-                break;
-            }
-            pos += 8;
-        }
         while pos < max && !is_terminator(s[pos]) {
             pos += 1;
         }
