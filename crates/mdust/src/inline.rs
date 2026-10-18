@@ -473,27 +473,27 @@ impl<'a> Inline<'a> {
                 }
                 if match_end - match_start == opener_len {
                     if !silent {
-                        let raw = &self.src[pos..match_start];
-                        let a = self.arena.len();
-                        for c in raw.chars() {
-                            self.arena.push(if c == '\n' { ' ' } else { c });
-                        }
-                        let mut b = self.arena.len();
-                        let mut a2 = a;
-                        let ab = self.arena.as_bytes();
-                        if b - a >= 2
-                            && ab[a] == b' '
-                            && ab[b - 1] == b' '
-                            && ab[a..b].iter().any(|&c| c != b' ')
-                        {
-                            a2 += 1;
+                        // Newlines become spaces, so the strip test treats them as spaces.
+                        let sp = |c: u8| c == b' ' || c == b'\n';
+                        let raw = &s[pos..match_start];
+                        let (mut a, mut b) = (pos, match_start);
+                        if raw.len() >= 2 && sp(raw[0]) && sp(raw[raw.len() - 1]) && raw.iter().any(|&c| !sp(c)) {
+                            a += 1;
                             b -= 1;
                         }
-                        let mut t = IToken::new(IKind::CodeInline);
-                        t.in_src = false;
-                        t.a = a2 as u32;
-                        t.b = b as u32;
-                        self.push(t);
+                        if s[a..b].contains(&b'\n') {
+                            let aa = self.arena.len();
+                            for c in self.src[a..b].chars() {
+                                self.arena.push(if c == '\n' { ' ' } else { c });
+                            }
+                            let mut t = IToken::new(IKind::CodeInline);
+                            t.in_src = false;
+                            t.a = aa as u32;
+                            t.b = self.arena.len() as u32;
+                            self.push(t);
+                        } else {
+                            self.push_src(IKind::CodeInline, a, b);
+                        }
                     }
                     self.pos = match_end;
                     return true;
