@@ -195,10 +195,10 @@ impl<'a> Inline<'a> {
     }
 
     fn append_pending(&mut self, a: usize, b: usize) {
+        debug_assert!(self.pend_a == self.pend_b || self.pend_b == a);
         if self.pend_a == self.pend_b {
             self.pend_a = a;
         }
-        debug_assert!(self.pend_a == self.pend_b || self.pend_b == a);
         self.pend_b = b;
     }
 
