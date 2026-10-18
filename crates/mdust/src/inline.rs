@@ -72,6 +72,7 @@ pub struct Scratch {
     lists: Vec<Vec<Delim>>,
     cache: FxMap<usize, usize>,
     prev: Vec<usize>,
+    backticks: Vec<u32>,
 }
 
 pub struct Inline<'a> {
@@ -89,7 +90,9 @@ pub struct Inline<'a> {
     cur: usize,
     prev: Vec<usize>,
     cache: FxMap<usize, usize>,
-    backticks: Option<FxMap<usize, usize>>,
+    /// Last backtick run start per run length, 0 = none. Empty until the
+    /// first backtick rule call for this block.
+    backticks: Vec<u32>,
     skip_html_special: bool,
 }
 
@@ -136,6 +139,8 @@ impl<'a> Inline<'a> {
         cache.clear();
         let mut prev = core::mem::take(&mut scratch.prev);
         prev.clear();
+        let mut backticks = core::mem::take(&mut scratch.backticks);
+        backticks.clear();
         let mut st = Inline {
             src,
             s: src.as_bytes(),
@@ -151,7 +156,7 @@ impl<'a> Inline<'a> {
             cur: 0,
             prev,
             cache,
-            backticks: None,
+            backticks,
             skip_html_special: false,
         };
         st.tokenize();
@@ -165,6 +170,7 @@ impl<'a> Inline<'a> {
         scratch.lists = self.lists;
         scratch.cache = self.cache;
         scratch.prev = self.prev;
+        scratch.backticks = self.backticks;
     }
 
     #[inline]
@@ -433,8 +439,8 @@ impl<'a> Inline<'a> {
             pos += 1;
         }
         let opener_len = pos - start;
-        if self.backticks.is_none() {
-            let mut runs = FxMap::default();
+        if self.backticks.is_empty() {
+            self.backticks.push(0);
             let mut p = 0;
             while let Some(i) = memchr(b'`', &s[p..]) {
                 let st = p + i;
@@ -442,12 +448,16 @@ impl<'a> Inline<'a> {
                 while p < s.len() && s[p] == b'`' {
                     p += 1;
                 }
-                runs.insert(p - st, st);
+                let len = p - st;
+                if self.backticks.len() <= len {
+                    self.backticks.resize(len + 1, 0);
+                }
+                // st + 1 so a run at offset 0 is distinguishable from "none".
+                self.backticks[len] = st as u32 + 1;
             }
-            self.backticks = Some(runs);
         }
-        let last = self.backticks.as_ref().unwrap().get(&opener_len).copied();
-        if last.is_some_and(|l| l >= pos) {
+        let last = self.backticks.get(opener_len).copied().unwrap_or(0);
+        if last > 0 && last as usize - 1 >= pos {
             let mut match_end = pos;
             while let Some(i) = memchr(b'`', &s[match_end..]) {
                 let match_start = match_end + i;
