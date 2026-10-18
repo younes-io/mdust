@@ -107,6 +107,7 @@ pub fn open_close_tag(s: &str) -> Option<usize> {
     open_tag(s).or_else(|| close_tag(s))
 }
 
+/// Sorted so `block_name` can binary-search it.
 pub const BLOCK_NAMES: &[&str] = &[
     "address", "article", "aside", "base", "basefont", "blockquote", "body", "caption", "center",
     "col", "colgroup", "dd", "details", "dialog", "dir", "div", "dl", "dt", "fieldset",
@@ -116,13 +117,69 @@ pub const BLOCK_NAMES: &[&str] = &[
     "summary", "table", "tbody", "td", "tfoot", "th", "thead", "title", "tr", "track", "ul",
 ];
 
-fn starts_with_ci(s: &[u8], p: &str) -> bool {
-    s.len() >= p.len() && s[..p.len()].eq_ignore_ascii_case(p.as_bytes())
+const MAX_NAME_LEN: usize = 10;
+
+/// The ASCII alphanumeric run at the start of `b`, lowercased into `buf`.
+fn alnum_token(b: &[u8], buf: &mut [u8; MAX_NAME_LEN]) -> Option<usize> {
+    let n = b.iter().take_while(|c| c.is_ascii_alphanumeric()).count();
+    if n == 0 || n > MAX_NAME_LEN {
+        return None;
+    }
+    for (d, s) in buf[..n].iter_mut().zip(&b[..n]) {
+        *d = s.to_ascii_lowercase();
+    }
+    Some(n)
 }
 
-fn contains_ci(hay: &[u8], needle: &str) -> bool {
-    let n = needle.as_bytes();
-    hay.len() >= n.len() && hay.windows(n.len()).any(|w| w.eq_ignore_ascii_case(n))
+/// Byte length of the block-level tag name at the start of `b`, if `b` starts with one.
+/// Names are alphanumeric and the regex lookahead admits no alphanumeric, so the whole
+/// alphanumeric run must equal one name; alternation order never matters.
+fn block_name(b: &[u8]) -> Option<usize> {
+    let mut buf = [0u8; MAX_NAME_LEN];
+    let n = alnum_token(b, &mut buf)?;
+    let tok = core::str::from_utf8(&buf[..n]).ok()?;
+    BLOCK_NAMES.binary_search(&tok).ok().map(|_| n)
+}
+
+fn raw_name(b: &[u8]) -> Option<usize> {
+    let mut buf = [0u8; MAX_NAME_LEN];
+    let n = alnum_token(b, &mut buf)?;
+    match &buf[..n] {
+        b"script" | b"pre" | b"style" | b"textarea" => Some(n),
+        _ => None,
+    }
+}
+
+/// `-->`, `?>`, `]]>`, and the raw-tag closers are too short for `str::contains`'s
+/// searcher setup to pay off on one line.
+fn contains_bytes(hay: &[u8], needle: &[u8]) -> bool {
+    let (first, tail) = match needle.split_first() {
+        Some(x) => x,
+        None => return true,
+    };
+    let mut rest = hay;
+    while let Some(i) = rest.iter().position(|&c| c == *first) {
+        rest = &rest[i + 1..];
+        if rest.starts_with(tail) {
+            return true;
+        }
+    }
+    false
+}
+
+fn contains_raw_closer(b: &[u8]) -> bool {
+    let mut rest = b;
+    while let Some(i) = rest.iter().position(|&c| c == b'<') {
+        rest = &rest[i + 1..];
+        if rest.first() == Some(&b'/') {
+            if let Some(n) = raw_name(&rest[1..]) {
+                if rest.get(1 + n) == Some(&b'>') {
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }
 
 /// Which HTML_SEQUENCES entry (0..7) opens on `line`, if any.
@@ -131,45 +188,36 @@ pub fn block_sequence(line: &str) -> Option<usize> {
     if b.first() != Some(&b'<') {
         return None;
     }
-    for name in ["script", "pre", "style", "textarea"] {
-        if starts_with_ci(&b[1..], name) {
-            let rest = &line[1 + name.len()..];
-            match rest.chars().next() {
-                None => return Some(0),
-                Some(c) if c == '>' || is_js_space(c) => return Some(0),
-                _ => {}
-            }
+    if let Some(n) = raw_name(&b[1..]) {
+        match line[1 + n..].chars().next() {
+            None => return Some(0),
+            Some(c) if c == '>' || is_js_space(c) => return Some(0),
+            _ => {}
         }
     }
-    if line.starts_with("<!--") {
+    if b.starts_with(b"<!--") {
         return Some(1);
     }
-    if line.starts_with("<?") {
+    if b.starts_with(b"<?") {
         return Some(2);
     }
     if b.len() > 2 && b[1] == b'!' && b[2].is_ascii_alphabetic() {
         return Some(3);
     }
-    if line.starts_with("<![CDATA[") {
+    if b.starts_with(b"<![CDATA[") {
         return Some(4);
     }
-    {
-        let start = if b.get(1) == Some(&b'/') { 2 } else { 1 };
-        let tb = &b[start..];
-        // The alternation picks the first listed name that matches with a valid lookahead.
-        for name in BLOCK_NAMES {
-            if starts_with_ci(tb, name) {
-                let rest = &line[start + name.len()..];
-                let ok = match rest.chars().next() {
-                    None => true,
-                    Some('>') => true,
-                    Some('/') => rest[1..].starts_with('>'),
-                    Some(c) => is_js_space(c),
-                };
-                if ok {
-                    return Some(5);
-                }
-            }
+    let start = if b.get(1) == Some(&b'/') { 2 } else { 1 };
+    if let Some(n) = block_name(&b[start..]) {
+        let rest = &line[start + n..];
+        let ok = match rest.chars().next() {
+            None => true,
+            Some('>') => true,
+            Some('/') => rest[1..].starts_with('>'),
+            Some(c) => is_js_space(c),
+        };
+        if ok {
+            return Some(5);
         }
     }
     if let Some(e) = open_close_tag(line) {
@@ -183,13 +231,42 @@ pub fn block_sequence(line: &str) -> Option<usize> {
 pub fn block_sequence_closes(seq: usize, line: &str) -> bool {
     let b = line.as_bytes();
     match seq {
-        0 => ["</script>", "</pre>", "</style>", "</textarea>"]
-            .iter()
-            .any(|n| contains_ci(b, n)),
-        1 => line.contains("-->"),
-        2 => line.contains("?>"),
-        3 => line.contains('>'),
-        4 => line.contains("]]>"),
+        0 => contains_raw_closer(b),
+        1 => contains_bytes(b, b"-->"),
+        2 => contains_bytes(b, b"?>"),
+        3 => b.contains(&b'>'),
+        4 => contains_bytes(b, b"]]>"),
         _ => line.is_empty(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn block_names_sorted() {
+        assert!(BLOCK_NAMES.windows(2).all(|w| w[0] < w[1]));
+    }
+
+    #[test]
+    fn sequences() {
+        assert_eq!(block_sequence("<DIV>"), Some(5));
+        assert_eq!(block_sequence("<div/>"), Some(5));
+        assert_eq!(block_sequence("</basefont"), Some(5));
+        assert_eq!(block_sequence("<base>"), Some(5));
+        assert_eq!(block_sequence("<divx>"), Some(6));
+        assert_eq!(block_sequence("<div\u{a0}x"), Some(5));
+        assert_eq!(block_sequence("<pre/>"), Some(6));
+        assert_eq!(block_sequence("<Script x"), Some(0));
+        assert_eq!(block_sequence("<scriptx"), None);
+        assert_eq!(block_sequence("<!x"), Some(3));
+        assert_eq!(block_sequence("<![CDATA["), Some(4));
+        assert_eq!(block_sequence("<>"), None);
+        assert!(block_sequence_closes(0, "x </SCRIPT> y"));
+        assert!(!block_sequence_closes(0, "</script x>"));
+        assert!(block_sequence_closes(1, "a --->"));
+        assert!(!block_sequence_closes(1, "a -- >"));
+        assert!(block_sequence_closes(4, "]]]>"));
     }
 }
