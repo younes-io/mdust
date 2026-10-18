@@ -70,6 +70,8 @@ pub struct Scratch {
     tokens: Vec<IToken>,
     arena: String,
     lists: Vec<Vec<Delim>>,
+    cache: FxMap<usize, usize>,
+    prev: Vec<usize>,
 }
 
 pub struct Inline<'a> {
@@ -130,6 +132,10 @@ impl<'a> Inline<'a> {
             Some(l) => l.clear(),
             None => lists.push(Vec::new()),
         }
+        let mut cache = core::mem::take(&mut scratch.cache);
+        cache.clear();
+        let mut prev = core::mem::take(&mut scratch.prev);
+        prev.clear();
         let mut st = Inline {
             src,
             s: src.as_bytes(),
@@ -143,8 +149,8 @@ impl<'a> Inline<'a> {
             arena,
             lists,
             cur: 0,
-            prev: Vec::new(),
-            cache: FxMap::default(),
+            prev,
+            cache,
             backticks: None,
             skip_html_special: false,
         };
@@ -157,6 +163,8 @@ impl<'a> Inline<'a> {
         scratch.tokens = self.tokens;
         scratch.arena = self.arena;
         scratch.lists = self.lists;
+        scratch.cache = self.cache;
+        scratch.prev = self.prev;
     }
 
     pub fn content(&self, t: &IToken) -> &str {
