@@ -1366,11 +1366,6 @@ fn escaped_split(s: &str) -> Vec<alloc::borrow::Cow<'_, str>> {
     result
 }
 
-#[doc(hidden)]
-pub fn profile_lines(src: &str) -> usize {
-    State::new(src).line_max
-}
-
 /// Word-at-a-time scan, since this runs over every byte of the input.
 pub fn find_byte(c: u8, s: &[u8]) -> Option<usize> {
     const LO: u64 = 0x0101_0101_0101_0101;
