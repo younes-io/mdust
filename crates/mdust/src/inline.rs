@@ -70,8 +70,12 @@ pub struct Scratch {
     tokens: Vec<IToken>,
     arena: String,
     lists: Vec<Vec<Delim>>,
-    cache: FxMap<usize, usize>,
+    /// skip_token memo, indexed by position: `gen << 32 | next_pos`, valid while
+    /// the stamp equals the current block's `gen`. Sized once to the longest block.
+    cache: Vec<u64>,
+    gen: u32,
     prev: Vec<usize>,
+    backticks: Vec<u32>,
 }
 
 pub struct Inline<'a> {
@@ -88,8 +92,11 @@ pub struct Inline<'a> {
     lists: Vec<Vec<Delim>>,
     cur: usize,
     prev: Vec<usize>,
-    cache: FxMap<usize, usize>,
-    backticks: Option<FxMap<usize, usize>>,
+    cache: Vec<u64>,
+    gen: u32,
+    /// Last backtick run start per run length, 0 = none. Empty until the
+    /// first backtick rule call for this block.
+    backticks: Vec<u32>,
     skip_html_special: bool,
 }
 
@@ -118,24 +125,28 @@ const fn is_terminator_slow(c: u8) -> bool {
 
 impl<'a> Inline<'a> {
     pub fn parse(src: &'a str, refs: &'a Refs) -> Self {
-        Self::parse_with(src, refs, &mut Scratch::default())
+        Self::parse_with(src, refs, Scratch::default())
     }
 
-    pub fn parse_with(src: &'a str, refs: &'a Refs, scratch: &mut Scratch) -> Self {
-        let mut tokens = core::mem::take(&mut scratch.tokens);
+    /// Takes `scratch` by value so its buffers move in and out without the
+    /// default-and-drop churn of `mem::take` per inline block.
+    pub fn parse_with(src: &'a str, refs: &'a Refs, scratch: Scratch) -> Self {
+        let Scratch { mut tokens, mut arena, mut lists, mut cache, gen, mut prev, mut backticks } =
+            scratch;
         tokens.clear();
-        let mut arena = core::mem::take(&mut scratch.arena);
         arena.clear();
-        let mut lists = core::mem::take(&mut scratch.lists);
         lists.truncate(1);
         match lists.first_mut() {
             Some(l) => l.clear(),
             None => lists.push(Vec::new()),
         }
-        let mut cache = core::mem::take(&mut scratch.cache);
-        cache.clear();
-        let mut prev = core::mem::take(&mut scratch.prev);
+        let gen = gen.wrapping_add(1);
+        if gen == 0 {
+            cache.clear();
+        }
+        let gen = gen.max(1);
         prev.clear();
+        backticks.clear();
         let mut st = Inline {
             src,
             s: src.as_bytes(),
@@ -151,7 +162,8 @@ impl<'a> Inline<'a> {
             cur: 0,
             prev,
             cache,
-            backticks: None,
+            gen,
+            backticks,
             skip_html_special: false,
         };
         st.tokenize();
@@ -159,14 +171,19 @@ impl<'a> Inline<'a> {
         st
     }
 
-    pub fn recycle(self, scratch: &mut Scratch) {
-        scratch.tokens = self.tokens;
-        scratch.arena = self.arena;
-        scratch.lists = self.lists;
-        scratch.cache = self.cache;
-        scratch.prev = self.prev;
+    pub fn recycle(self) -> Scratch {
+        Scratch {
+            tokens: self.tokens,
+            arena: self.arena,
+            lists: self.lists,
+            cache: self.cache,
+            gen: self.gen,
+            prev: self.prev,
+            backticks: self.backticks,
+        }
     }
 
+    #[inline]
     pub fn content(&self, t: &IToken) -> &str {
         if t.in_src {
             &self.src[t.a as usize..t.b as usize]
@@ -175,6 +192,7 @@ impl<'a> Inline<'a> {
         }
     }
 
+    #[inline]
     pub fn arena_str(&self, r: (u32, u32)) -> &str {
         &self.arena[r.0 as usize..r.1 as usize]
     }
@@ -288,8 +306,12 @@ impl<'a> Inline<'a> {
 
     fn skip_token(&mut self) {
         let pos = self.pos;
-        if let Some(&p) = self.cache.get(&pos) {
-            self.pos = p;
+        if self.cache.len() <= pos {
+            self.cache.resize(self.pos_max + 1, 0);
+        }
+        let e = self.cache[pos];
+        if (e >> 32) as u32 == self.gen {
+            self.pos = e as u32 as usize;
             return;
         }
         let mut ok = false;
@@ -303,7 +325,7 @@ impl<'a> Inline<'a> {
         if !ok {
             self.pos += 1;
         }
-        self.cache.insert(pos, self.pos);
+        self.cache[pos] = (self.gen as u64) << 32 | self.pos as u64;
     }
 
     fn parse_link_label(&mut self, start: usize, disable_nested: bool) -> Option<usize> {
@@ -342,18 +364,7 @@ impl<'a> Inline<'a> {
     fn rule_text(&mut self, silent: bool) -> bool {
         let mut pos = self.pos;
         let max = self.pos_max;
-        let s = self.s;
-        while pos + 8 <= max {
-            let c: &[u8; 8] = s[pos..pos + 8].try_into().unwrap();
-            let hit = c.iter().fold(false, |h, &b| h | is_terminator(b));
-            if hit {
-                break;
-            }
-            pos += 8;
-        }
-        while pos < max && !is_terminator(s[pos]) {
-            pos += 1;
-        }
+        pos += self.s[pos..max].iter().position(|&c| is_terminator(c)).unwrap_or(max - pos);
         if pos == self.pos {
             return false;
         }
@@ -439,8 +450,8 @@ impl<'a> Inline<'a> {
             pos += 1;
         }
         let opener_len = pos - start;
-        if self.backticks.is_none() {
-            let mut runs = FxMap::default();
+        if self.backticks.is_empty() {
+            self.backticks.push(0);
             let mut p = 0;
             while let Some(i) = memchr(b'`', &s[p..]) {
                 let st = p + i;
@@ -448,12 +459,16 @@ impl<'a> Inline<'a> {
                 while p < s.len() && s[p] == b'`' {
                     p += 1;
                 }
-                runs.insert(p - st, st);
+                let len = p - st;
+                if self.backticks.len() <= len {
+                    self.backticks.resize(len + 1, 0);
+                }
+                // st + 1 so a run at offset 0 is distinguishable from "none".
+                self.backticks[len] = st as u32 + 1;
             }
-            self.backticks = Some(runs);
         }
-        let last = self.backticks.as_ref().unwrap().get(&opener_len).copied();
-        if last.is_some_and(|l| l >= pos) {
+        let last = self.backticks.get(opener_len).copied().unwrap_or(0);
+        if last > 0 && last as usize - 1 >= pos {
             let mut match_end = pos;
             while let Some(i) = memchr(b'`', &s[match_end..]) {
                 let match_start = match_end + i;
@@ -469,27 +484,27 @@ impl<'a> Inline<'a> {
                 }
                 if match_end - match_start == opener_len {
                     if !silent {
-                        let raw = &self.src[pos..match_start];
-                        let a = self.arena.len();
-                        for c in raw.chars() {
-                            self.arena.push(if c == '\n' { ' ' } else { c });
-                        }
-                        let mut b = self.arena.len();
-                        let mut a2 = a;
-                        let ab = self.arena.as_bytes();
-                        if b - a >= 2
-                            && ab[a] == b' '
-                            && ab[b - 1] == b' '
-                            && ab[a..b].iter().any(|&c| c != b' ')
-                        {
-                            a2 += 1;
+                        // Newlines become spaces, so the strip test treats them as spaces.
+                        let sp = |c: u8| c == b' ' || c == b'\n';
+                        let raw = &s[pos..match_start];
+                        let (mut a, mut b) = (pos, match_start);
+                        if raw.len() >= 2 && sp(raw[0]) && sp(raw[raw.len() - 1]) && raw.iter().any(|&c| !sp(c)) {
+                            a += 1;
                             b -= 1;
                         }
-                        let mut t = IToken::new(IKind::CodeInline);
-                        t.in_src = false;
-                        t.a = a2 as u32;
-                        t.b = b as u32;
-                        self.push(t);
+                        if s[a..b].contains(&b'\n') {
+                            let aa = self.arena.len();
+                            for c in self.src[a..b].chars() {
+                                self.arena.push(if c == '\n' { ' ' } else { c });
+                            }
+                            let mut t = IToken::new(IKind::CodeInline);
+                            t.in_src = false;
+                            t.a = aa as u32;
+                            t.b = self.arena.len() as u32;
+                            self.push(t);
+                        } else {
+                            self.push_src(IKind::CodeInline, a, b);
+                        }
                     }
                     self.pos = match_end;
                     return true;
@@ -625,7 +640,7 @@ impl<'a> Inline<'a> {
                 return false;
             }
             if let Some(res) = parse_link_destination(self.src, pos, self.pos_max) {
-                href = normalize_link(&res.str);
+                href = normalize_link(res.str);
                 if validate_link(&href) {
                     pos = res.pos;
                 } else {
@@ -700,7 +715,7 @@ impl<'a> Inline<'a> {
                 return false;
             }
             if let Some(res) = parse_link_destination(self.src, pos, self.pos_max) {
-                href = normalize_link(&res.str);
+                href = normalize_link(res.str);
                 if validate_link(&href) {
                     pos = res.pos;
                 } else {
@@ -787,9 +802,9 @@ impl<'a> Inline<'a> {
         }
         let url = &self.src[start + 1..pos];
         let full = if is_autolink(url) {
-            normalize_link(url)
+            normalize_link(url.to_string())
         } else if is_email(url) {
-            normalize_link(&["mailto:", url].concat())
+            normalize_link(["mailto:", url].concat())
         } else {
             return false;
         };
@@ -903,7 +918,18 @@ impl<'a> Inline<'a> {
 }
 
 fn memchr(c: u8, h: &[u8]) -> Option<usize> {
-    h.iter().position(|&x| x == c)
+    // Eight bytes per step; wasm32 has no SIMD here, so use the zero-byte trick on u64.
+    let pat = u64::from_ne_bytes([c; 8]);
+    let mut i = 0;
+    while i + 8 <= h.len() {
+        let w = u64::from_le_bytes(h[i..i + 8].try_into().unwrap()) ^ pat;
+        let z = w.wrapping_sub(0x0101_0101_0101_0101) & !w & 0x8080_8080_8080_8080;
+        if z != 0 {
+            return Some(i + (z.trailing_zeros() / 8) as usize);
+        }
+        i += 8;
+    }
+    h[i..].iter().position(|&x| x == c).map(|k| i + k)
 }
 
 fn is_autolink(url: &str) -> bool {

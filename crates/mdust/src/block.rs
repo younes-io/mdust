@@ -55,6 +55,43 @@ impl Kind {
         }
     }
 
+    /// Whole tag for a token with no attributes: `<p>`, or `<ul>\n` when `lf`
+    /// (closing tags always end in a newline).
+    pub fn html(self, lf: bool) -> &'static str {
+        use Kind::*;
+        const HO: [&str; 7] = ["", "<h1>", "<h2>", "<h3>", "<h4>", "<h5>", "<h6>"];
+        const HOL: [&str; 7] = ["", "<h1>\n", "<h2>\n", "<h3>\n", "<h4>\n", "<h5>\n", "<h6>\n"];
+        const HC: [&str; 7] = ["", "</h1>\n", "</h2>\n", "</h3>\n", "</h4>\n", "</h5>\n", "</h6>\n"];
+        match self {
+            ParagraphOpen => if lf { "<p>\n" } else { "<p>" },
+            ParagraphClose => "</p>\n",
+            HeadingOpen(l) => if lf { HOL[l as usize] } else { HO[l as usize] },
+            HeadingClose(l) => HC[l as usize],
+            BlockquoteOpen => if lf { "<blockquote>\n" } else { "<blockquote>" },
+            BlockquoteClose => "</blockquote>\n",
+            BulletListOpen => if lf { "<ul>\n" } else { "<ul>" },
+            BulletListClose => "</ul>\n",
+            OrderedListOpen(_) => if lf { "<ol>\n" } else { "<ol>" },
+            OrderedListClose => "</ol>\n",
+            ListItemOpen => if lf { "<li>\n" } else { "<li>" },
+            ListItemClose => "</li>\n",
+            TableOpen => if lf { "<table>\n" } else { "<table>" },
+            TableClose => "</table>\n",
+            TheadOpen => if lf { "<thead>\n" } else { "<thead>" },
+            TheadClose => "</thead>\n",
+            TbodyOpen => if lf { "<tbody>\n" } else { "<tbody>" },
+            TbodyClose => "</tbody>\n",
+            TrOpen => if lf { "<tr>\n" } else { "<tr>" },
+            TrClose => "</tr>\n",
+            ThOpen(_) => if lf { "<th>\n" } else { "<th>" },
+            ThClose => "</th>\n",
+            TdOpen(_) => if lf { "<td>\n" } else { "<td>" },
+            TdClose => "</td>\n",
+            Hr => "<hr>\n",
+            Inline | CodeBlock | Fence | HtmlBlock => "",
+        }
+    }
+
     pub fn tag(self) -> &'static str {
         use Kind::*;
         const H: [&str; 7] = ["", "h1", "h2", "h3", "h4", "h5", "h6"];
@@ -78,14 +115,20 @@ impl Kind {
     }
 }
 
+/// Set in a span's start offset when the span indexes `Blocks::buf` instead of the
+/// source. Most block content is a verbatim run of source lines, so it stays a span
+/// into `src` and is never copied; only lines that need indent stripped or padding
+/// added, plus synthesized text, go through the arena.
+pub const ARENA: u32 = 1 << 31;
+
 pub struct Token {
     pub kind: Kind,
     pub hidden: bool,
     pub level: u32,
-    /// Content range in `Blocks::buf`.
+    /// Content span, see `Blocks::slice`.
     pub c0: u32,
     pub c1: u32,
-    /// Fence info range in `Blocks::buf`.
+    /// Fence info span, see `Blocks::slice`.
     pub i0: u32,
     pub i1: u32,
 }
@@ -95,18 +138,27 @@ pub struct Reference {
     pub title: String,
 }
 
-pub struct Blocks {
+pub struct Blocks<'a> {
+    pub src: &'a str,
     pub tokens: Vec<Token>,
     pub buf: String,
     pub refs: FxMap<String, Reference>,
 }
 
-impl Blocks {
+impl<'a> Blocks<'a> {
+    /// Resolves a span to its text in `src` or, when `a` carries `ARENA`, in `buf`.
+    pub fn slice(&self, a: u32, b: u32) -> &str {
+        if a & ARENA == 0 {
+            &self.src[a as usize..b as usize]
+        } else {
+            &self.buf[(a ^ ARENA) as usize..b as usize]
+        }
+    }
     pub fn content(&self, t: &Token) -> &str {
-        &self.buf[t.c0 as usize..t.c1 as usize]
+        self.slice(t.c0, t.c1)
     }
     pub fn info(&self, t: &Token) -> &str {
-        &self.buf[t.i0 as usize..t.i1 as usize]
+        self.slice(t.i0, t.i1)
     }
 }
 
@@ -143,10 +195,12 @@ struct State<'a> {
     list_indent: i32,
     parent: Parent,
     level: u32,
-    out: Blocks,
+    /// `get_lines` scratch: one `(first, last, pad)` per line of the block being cut.
+    pieces: Vec<(usize, usize, usize)>,
+    out: Blocks<'a>,
 }
 
-pub fn parse(src: &str) -> Blocks {
+pub fn parse(src: &str) -> Blocks<'_> {
     let mut st = State::new(src);
     if !src.is_empty() {
         let lm = st.line_max;
@@ -158,7 +212,9 @@ pub fn parse(src: &str) -> Blocks {
 impl<'a> State<'a> {
     fn new(src: &'a str) -> Self {
         let s = src.as_bytes();
-        let n = count_byte(b'\n', s) + 2;
+        // Capacity guess. Counting newlines first costs a scan of the whole
+        // source, more than the few amortized grows a miss costs.
+        let n = s.len() / 24 + 8;
         let mut st = State {
             src,
             s,
@@ -174,7 +230,9 @@ impl<'a> State<'a> {
             list_indent: -1,
             parent: Parent::Root,
             level: 0,
+            pieces: Vec::new(),
             out: Blocks {
+                src,
                 tokens: Vec::with_capacity(n),
                 buf: String::with_capacity(src.len() + 16),
                 refs: FxMap::default(),
@@ -200,14 +258,15 @@ impl<'a> State<'a> {
             st.e_marks.push(eol);
             st.t_shift.push(indent);
             st.s_count.push(offset);
+            st.bs_count.push(0);
             start = eol + 1;
         }
         st.b_marks.push(len);
         st.e_marks.push(len);
         st.t_shift.push(0);
         st.s_count.push(0);
+        st.bs_count.push(0);
         st.line_max = st.b_marks.len() - 1;
-        st.bs_count = vec![0; st.line_max + 1];
         st
     }
 
@@ -233,18 +292,19 @@ impl<'a> State<'a> {
         self.out.tokens.len() - 1
     }
 
-    fn push_content(&mut self, kind: Kind, c0: usize, c1: usize) -> usize {
+    fn push_content(&mut self, kind: Kind, c0: u32, c1: u32) -> usize {
         let i = self.push(kind);
         let t = &mut self.out.tokens[i];
-        t.c0 = c0 as u32;
-        t.c1 = c1 as u32;
+        t.c0 = c0;
+        t.c1 = c1;
         i
     }
 
-    fn push_str(&mut self, s: &str) -> (usize, usize) {
+    /// Copies `s` into the arena and returns its span.
+    fn push_str(&mut self, s: &str) -> (u32, u32) {
         let a = self.out.buf.len();
         self.out.buf.push_str(s);
-        (a, self.out.buf.len())
+        (a as u32 | ARENA, self.out.buf.len() as u32)
     }
 
     fn is_empty(&self, line: usize) -> bool {
@@ -301,10 +361,13 @@ impl<'a> State<'a> {
         pos
     }
 
-    /// Appends `getLines(begin, end, indent, keep_last_lf)` to the arena.
-    fn get_lines(&mut self, begin: usize, end: usize, indent: i32, keep_last_lf: bool) -> (usize, usize) {
-        let a = self.out.buf.len();
+    /// `getLines(begin, end, indent, keep_last_lf)`. When the stripped lines are adjacent
+    /// in the source and need no padding (a column-0 paragraph, a fence body, a heading)
+    /// the result is a span into `src`; otherwise the lines are copied into the arena.
+    fn get_lines(&mut self, begin: usize, end: usize, indent: i32, keep_last_lf: bool) -> (u32, u32) {
         let slen = self.s.len();
+        self.pieces.clear();
+        let mut contiguous = true;
         for line in begin..end {
             let mut line_indent = 0i32;
             let line_start = self.b_marks[line];
@@ -329,25 +392,50 @@ impl<'a> State<'a> {
                 }
                 first += 1;
             }
-            if line_indent > indent {
-                for _ in 0..(line_indent - indent) {
-                    self.out.buf.push(' ');
-                }
+            let pad = (line_indent - indent).max(0) as usize;
+            if pad != 0 || self.pieces.last().is_some_and(|p| p.1 != first) {
+                contiguous = false;
             }
-            if first < last {
-                self.out.buf.push_str(&self.src[first..last]);
-            }
+            self.pieces.push((first, last, pad));
         }
-        (a, self.out.buf.len())
+        if contiguous {
+            let a = self.pieces.first().map_or(0, |p| p.0);
+            let b = self.pieces.last().map_or(0, |p| p.1);
+            return (a as u32, b as u32);
+        }
+        let a = self.out.buf.len();
+        for i in 0..self.pieces.len() {
+            let (first, last, pad) = self.pieces[i];
+            for _ in 0..pad {
+                self.out.buf.push(' ');
+            }
+            self.out.buf.push_str(&self.src[first..last]);
+        }
+        (a as u32 | ARENA, self.out.buf.len() as u32)
     }
 
-    fn get_lines_trimmed(&mut self, begin: usize, end: usize, indent: i32) -> (usize, usize) {
+    fn get_lines_trimmed(&mut self, begin: usize, end: usize, indent: i32) -> (u32, u32) {
         let (a, b) = self.get_lines(begin, end, indent, false);
-        let s = &self.out.buf[a..b];
+        let s = self.out.slice(a, b);
         let t = ascii_trim(s);
-        let off = t.as_ptr() as usize - s.as_ptr() as usize;
-        let tl = t.len();
-        (a + off, a + off + tl)
+        let lead = (t.as_ptr() as usize - s.as_ptr() as usize) as u32;
+        let trail = (s.len() - t.len()) as u32 - lead;
+        (a + lead, b - trail)
+    }
+
+    /// The code rule appends '\n' to its lines. A source span can take the newline that
+    /// already follows it; only a span at the very end of the input needs a copy.
+    fn with_trailing_lf(&mut self, a: u32, b: u32) -> (u32, u32) {
+        if a & ARENA != 0 {
+            debug_assert_eq!(b as usize, self.out.buf.len());
+            self.out.buf.push('\n');
+        } else if self.s.get(b as usize) != Some(&b'\n') {
+            let src = self.src;
+            let (a, _) = self.push_str(&src[a as usize..b as usize]);
+            self.out.buf.push('\n');
+            return (a, self.out.buf.len() as u32);
+        }
+        (a, b + 1)
     }
 
     fn tokenize(&mut self, start_line: usize, end_line: usize) {
@@ -447,9 +535,8 @@ impl<'a> State<'a> {
             break;
         }
         self.line = last;
-        let (a, _) = self.get_lines(start_line, last, 4 + self.blk_indent, false);
-        self.out.buf.push('\n');
-        let b = self.out.buf.len();
+        let (a, b) = self.get_lines(start_line, last, 4 + self.blk_indent, false);
+        let (a, b) = self.with_trailing_lf(a, b);
         self.push_content(Kind::CodeBlock, a, b);
         true
     }
@@ -515,8 +602,8 @@ impl<'a> State<'a> {
         let (i0, i1) = self.push_str(params);
         let (c0, c1) = self.get_lines(start_line + 1, next, indent, true);
         let t = self.push_content(Kind::Fence, c0, c1);
-        self.out.tokens[t].i0 = i0 as u32;
-        self.out.tokens[t].i1 = i1 as u32;
+        self.out.tokens[t].i0 = i0;
+        self.out.tokens[t].i1 = i1;
         true
     }
 
@@ -965,7 +1052,7 @@ impl<'a> State<'a> {
             }
         }
         let Some(dest) = parse_link_destination(src, pos, max) else { return false };
-        let href = normalize_link(&dest.str);
+        let href = normalize_link(dest.str);
         if !validate_link(&href) {
             return false;
         }
@@ -1383,6 +1470,3 @@ pub fn find_byte(c: u8, s: &[u8]) -> Option<usize> {
     s[i..].iter().position(|&b| b == c).map(|p| i + p)
 }
 
-fn count_byte(c: u8, s: &[u8]) -> usize {
-    s.iter().filter(|&&b| b == c).count()
-}
