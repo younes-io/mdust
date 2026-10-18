@@ -196,8 +196,34 @@ fn format(u: &Url) -> String {
 
 const HEX: &[u8; 16] = b"0123456789ABCDEF";
 
+const KEEP: u8 = 1;
+const SCHEME: u8 = 2;
+const HOST: u8 = 4;
+
+/// Byte classes for the hot paths: KEEP is `mdurl.encode`'s default exclusion
+/// set, SCHEME the bytes allowed in a protocol, HOST the bytes
+/// `hostnamePartPattern` accepts in a label.
+static CLASS: [u8; 256] = {
+    let mut t = [0u8; 256];
+    let mut c = 0;
+    while c < 256 {
+        let b = c as u8;
+        if b.is_ascii_alphanumeric() {
+            t[c] = KEEP | SCHEME | HOST;
+        } else if matches!(b, b'.' | b'+' | b'-') {
+            t[c] = KEEP | SCHEME | if b == b'.' { 0 } else { HOST };
+        } else if b == b'_' {
+            t[c] = KEEP | HOST;
+        } else if matches!(b, b';' | b'/' | b'?' | b':' | b'@' | b'&' | b'=' | b'$' | b',' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')' | b'#') {
+            t[c] = KEEP;
+        }
+        c += 1;
+    }
+    t
+};
+
 fn encode_keep(c: u8) -> bool {
-    c.is_ascii_alphanumeric() || b";/?:@&=+$,-_.!~*'()#".contains(&c)
+    CLASS[c as usize] & KEEP != 0
 }
 
 /// `mdurl.encode(str)` with default exclusions and keepEscaped.
@@ -529,7 +555,7 @@ fn is_normalized(url: &str) -> bool {
     if !b.iter().all(|&c| encode_keep(c)) || b.starts_with(b"//") {
         return false;
     }
-    let n = b.iter().take_while(|&&c| c.is_ascii_alphanumeric() || matches!(c, b'.' | b'+' | b'-')).count();
+    let n = b.iter().take_while(|&&c| CLASS[c as usize] & SCHEME != 0).count();
     if !(n > 0 && b.get(n) == Some(&b':')) {
         return true;
     }
@@ -551,11 +577,23 @@ fn is_normalized(url: &str) -> bool {
         }
         None => host,
     };
-    host.len() <= 255
-        && host.split(|&c| c == b'.').all(|label| {
-            label.len() <= 63
-                && label.iter().all(|&c| c.is_ascii_alphanumeric() || matches!(c, b'+' | b'_' | b'-'))
-        })
+    if host.len() > 255 {
+        return false;
+    }
+    let mut label = 0;
+    for &c in host {
+        if c == b'.' {
+            label = 0;
+        } else if CLASS[c as usize] & HOST == 0 {
+            return false;
+        } else {
+            label += 1;
+            if label > 63 {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 pub fn normalize_link(url: String) -> String {
