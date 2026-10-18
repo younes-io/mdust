@@ -5,6 +5,13 @@
 use std::path::Path;
 use std::time::Instant;
 
+#[cfg(feature = "mimalloc")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+#[cfg(feature = "jemalloc")]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let min_ms: f64 = args[0].parse().unwrap();

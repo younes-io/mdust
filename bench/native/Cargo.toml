@@ -7,6 +7,13 @@ publish = false
 [dependencies]
 mdit-rs-wasm = { path = "../rust-wasm" }
 mdust = { path = "../../crates/mdust" }
+mimalloc = { version = "0.1", optional = true }
+tikv-jemallocator = { version = "0.6", optional = true }
+
+[features]
+default = ["mimalloc"]
+mimalloc = ["dep:mimalloc"]
+jemalloc = ["dep:tikv-jemallocator"]
 
 [profile.release]
 opt-level = 3
