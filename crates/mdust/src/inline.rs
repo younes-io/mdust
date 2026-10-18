@@ -907,7 +907,18 @@ impl<'a> Inline<'a> {
 }
 
 fn memchr(c: u8, h: &[u8]) -> Option<usize> {
-    h.iter().position(|&x| x == c)
+    // Eight bytes per step; wasm32 has no SIMD here, so use the zero-byte trick on u64.
+    let pat = u64::from_ne_bytes([c; 8]);
+    let mut i = 0;
+    while i + 8 <= h.len() {
+        let w = u64::from_le_bytes(h[i..i + 8].try_into().unwrap()) ^ pat;
+        let z = w.wrapping_sub(0x0101_0101_0101_0101) & !w & 0x8080_8080_8080_8080;
+        if z != 0 {
+            return Some(i + (z.trailing_zeros() / 8) as usize);
+        }
+        i += 8;
+    }
+    h[i..].iter().position(|&x| x == c).map(|k| i + k)
 }
 
 fn is_autolink(url: &str) -> bool {
