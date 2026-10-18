@@ -10,7 +10,7 @@ pub fn render(blocks: &Blocks, out: &mut String) {
     let mut scratch = Scratch::default();
     for (idx, t) in toks.iter().enumerate() {
         match t.kind {
-            Kind::Inline => render_inline(blocks.content(t), blocks, &mut scratch, out),
+            Kind::Inline => scratch = render_inline(blocks.content(t), blocks, scratch, out),
             Kind::CodeBlock => {
                 out.push_str("<pre><code>");
                 escape_html_into(out, blocks.content(t));
@@ -72,7 +72,7 @@ pub fn render(blocks: &Blocks, out: &mut String) {
     }
 }
 
-fn render_inline(src: &str, blocks: &Blocks, scratch: &mut Scratch, out: &mut String) {
+fn render_inline(src: &str, blocks: &Blocks, scratch: Scratch, out: &mut String) -> Scratch {
     let st = Inline::parse_with(src, &blocks.refs, scratch);
     for t in &st.tokens {
         match t.kind {
@@ -120,5 +120,5 @@ fn render_inline(src: &str, blocks: &Blocks, scratch: &mut Scratch, out: &mut St
             }
         }
     }
-    st.recycle(scratch);
+    st.recycle()
 }

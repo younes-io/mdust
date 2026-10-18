@@ -70,7 +70,10 @@ pub struct Scratch {
     tokens: Vec<IToken>,
     arena: String,
     lists: Vec<Vec<Delim>>,
-    cache: FxMap<usize, usize>,
+    /// skip_token memo, indexed by position: `gen << 32 | next_pos`, valid while
+    /// the stamp equals the current block's `gen`. Sized once to the longest block.
+    cache: Vec<u64>,
+    gen: u32,
     prev: Vec<usize>,
     backticks: Vec<u32>,
 }
@@ -89,7 +92,8 @@ pub struct Inline<'a> {
     lists: Vec<Vec<Delim>>,
     cur: usize,
     prev: Vec<usize>,
-    cache: FxMap<usize, usize>,
+    cache: Vec<u64>,
+    gen: u32,
     /// Last backtick run start per run length, 0 = none. Empty until the
     /// first backtick rule call for this block.
     backticks: Vec<u32>,
@@ -121,25 +125,27 @@ const fn is_terminator_slow(c: u8) -> bool {
 
 impl<'a> Inline<'a> {
     pub fn parse(src: &'a str, refs: &'a Refs) -> Self {
-        Self::parse_with(src, refs, &mut Scratch::default())
+        Self::parse_with(src, refs, Scratch::default())
     }
 
-    pub fn parse_with(src: &'a str, refs: &'a Refs, scratch: &mut Scratch) -> Self {
-        let mut tokens = core::mem::take(&mut scratch.tokens);
+    /// Takes `scratch` by value so its buffers move in and out without the
+    /// default-and-drop churn of `mem::take` per inline block.
+    pub fn parse_with(src: &'a str, refs: &'a Refs, scratch: Scratch) -> Self {
+        let Scratch { mut tokens, mut arena, mut lists, mut cache, gen, mut prev, mut backticks } =
+            scratch;
         tokens.clear();
-        let mut arena = core::mem::take(&mut scratch.arena);
         arena.clear();
-        let mut lists = core::mem::take(&mut scratch.lists);
         lists.truncate(1);
         match lists.first_mut() {
             Some(l) => l.clear(),
             None => lists.push(Vec::new()),
         }
-        let mut cache = core::mem::take(&mut scratch.cache);
-        cache.clear();
-        let mut prev = core::mem::take(&mut scratch.prev);
+        let gen = gen.wrapping_add(1);
+        if gen == 0 {
+            cache.clear();
+        }
+        let gen = gen.max(1);
         prev.clear();
-        let mut backticks = core::mem::take(&mut scratch.backticks);
         backticks.clear();
         let mut st = Inline {
             src,
@@ -156,6 +162,7 @@ impl<'a> Inline<'a> {
             cur: 0,
             prev,
             cache,
+            gen,
             backticks,
             skip_html_special: false,
         };
@@ -164,13 +171,16 @@ impl<'a> Inline<'a> {
         st
     }
 
-    pub fn recycle(self, scratch: &mut Scratch) {
-        scratch.tokens = self.tokens;
-        scratch.arena = self.arena;
-        scratch.lists = self.lists;
-        scratch.cache = self.cache;
-        scratch.prev = self.prev;
-        scratch.backticks = self.backticks;
+    pub fn recycle(self) -> Scratch {
+        Scratch {
+            tokens: self.tokens,
+            arena: self.arena,
+            lists: self.lists,
+            cache: self.cache,
+            gen: self.gen,
+            prev: self.prev,
+            backticks: self.backticks,
+        }
     }
 
     #[inline]
@@ -296,8 +306,12 @@ impl<'a> Inline<'a> {
 
     fn skip_token(&mut self) {
         let pos = self.pos;
-        if let Some(&p) = self.cache.get(&pos) {
-            self.pos = p;
+        if self.cache.len() <= pos {
+            self.cache.resize(self.pos_max + 1, 0);
+        }
+        let e = self.cache[pos];
+        if (e >> 32) as u32 == self.gen {
+            self.pos = e as u32 as usize;
             return;
         }
         let mut ok = false;
@@ -311,7 +325,7 @@ impl<'a> Inline<'a> {
         if !ok {
             self.pos += 1;
         }
-        self.cache.insert(pos, self.pos);
+        self.cache[pos] = (self.gen as u64) << 32 | self.pos as u64;
     }
 
     fn parse_link_label(&mut self, start: usize, disable_nested: bool) -> Option<usize> {
