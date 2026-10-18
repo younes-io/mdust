@@ -31,25 +31,3 @@ pub fn render(src: &str) -> String {
     render::render(&blocks, &mut out);
     out
 }
-
-#[doc(hidden)]
-pub fn profile_blocks(src: &str) -> usize {
-    block::parse(src).tokens.len()
-}
-
-#[doc(hidden)]
-pub fn profile_inline_parse(src: &str) -> usize {
-    let b = block::parse(src);
-    let mut n = 0;
-    for t in &b.tokens {
-        if t.kind == block::Kind::Inline {
-            n += inline::Inline::parse(b.content(t), &b.refs).tokens.len();
-        }
-    }
-    n
-}
-
-#[doc(hidden)]
-pub fn profile_lines(src: &str) -> usize {
-    block::profile_lines(src)
-}

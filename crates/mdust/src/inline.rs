@@ -195,10 +195,10 @@ impl<'a> Inline<'a> {
     }
 
     fn append_pending(&mut self, a: usize, b: usize) {
+        debug_assert!(self.pend_a == self.pend_b || self.pend_b == a);
         if self.pend_a == self.pend_b {
             self.pend_a = a;
         }
-        debug_assert!(self.pend_a == self.pend_b || self.pend_b == a);
         self.pend_b = b;
     }
 
@@ -639,10 +639,20 @@ impl<'a> Inline<'a> {
                     pos = self.skip_ws_nl(tr.pos, max);
                 }
             }
-            if pos >= max || self.s[pos] != b')' {
+            if pos < max && self.s[pos] == b')' {
+                pos += 1;
+            } else {
                 parse_reference = true;
+                // markdown-it does `pos++` here in UTF-16 units before it looks for a
+                // reference label. Inside a 4-byte char that lands mid-surrogate, which
+                // is never `[`, so label_end + 1 (the `(`) is an equivalent non-`[` spot.
+                pos = match self.ch(pos) {
+                    0..=0x7F => pos + 1,
+                    0xC0..=0xDF => pos + 2,
+                    0xE0..=0xEF => pos + 3,
+                    _ => label_end + 1,
+                };
             }
-            pos += 1;
         }
         if parse_reference {
             match self.reference_target(pos, label_start, label_end) {
