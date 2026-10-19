@@ -12,6 +12,6 @@
     "conformance": "node conformance.mjs",
     "fuzz": "node fuzz.mjs",
     "bench": "node run.mjs",
-    "build:mdust": "cd .. && cargo build --profile wasm -p mdust-wasm --target wasm32-unknown-unknown && mkdir -p crates/mdust-wasm/pkg && cp target/wasm32-unknown-unknown/wasm/mdust_wasm.wasm crates/mdust-wasm/pkg/mdust_wasm_bg.wasm && cp crates/mdust-wasm/glue/mdust_wasm.js crates/mdust-wasm/glue/mdust_wasm.web.mjs crates/mdust-wasm/pkg/ && echo '{\"type\":\"commonjs\"}' > crates/mdust-wasm/pkg/package.json"
+    "build:mdust": "npm --prefix ../npm run build && cd .. && mkdir -p crates/mdust-wasm/pkg && cp npm/mdust_wasm_bg.wasm npm/mdust_wasm.js npm/mdust_wasm.web.mjs crates/mdust-wasm/pkg/ && echo '{\"type\":\"commonjs\"}' > crates/mdust-wasm/pkg/package.json"
   }
 }

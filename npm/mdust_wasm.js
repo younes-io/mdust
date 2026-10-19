@@ -24,4 +24,6 @@ function render(src) {
 }
 
 module.exports.render = render;
+// Node instantiates on load; init exists so code shared with the browser entry runs unchanged.
+module.exports.init = async () => {};
 module.exports.__wasm = wasm;

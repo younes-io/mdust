@@ -4,3 +4,5 @@
 /bench/node_modules
 /bench/rust-wasm/pkg
 /.tools/
+/npm/mdust_wasm_bg.wasm
+/npm/*.tgz
