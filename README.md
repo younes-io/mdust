@@ -1,6 +1,6 @@
 # mdust
 
-mdust is a Markdown to HTML renderer written in Rust and compiled to WebAssembly. Its output is byte-identical to [markdown-it](https://github.com/markdown-it/markdown-it) 15.0.3 with preset `default` and `{ html: true }`. In Node it renders the benchmark corpora about 10 times faster than markdown-it, measured on 2026-10-19 with `node run.mjs` in `bench/`. For install and usage, read the [npm package README](npm/README.md).
+mdust is a Markdown to HTML renderer written in Rust and compiled to WebAssembly. Its output is byte-identical to [markdown-it](https://github.com/markdown-it/markdown-it) 15.0.3 with preset `default` and `{ html: true }` on every document the repository tests. In Node it renders the 21 benchmark corpora 8.3 to 15.1 times faster than markdown-it, measured on 2026-10-19 with `node run.mjs` in `bench/`. The [npm package README](npm/README.md) has install, usage, the design notes and the full benchmark table.
 
 ## Repository layout
 
@@ -8,6 +8,8 @@ mdust is a Markdown to HTML renderer written in Rust and compiled to WebAssembly
 - `crates/mdust-wasm` exports `mdust::render` to WebAssembly through two buffers that the JS loaders read and write.
 - `npm/` is the `mdust-rs` npm package. npm refused the bare name mdust as too close to an existing package. It holds the Node loader `mdust_wasm.js`, its ES module wrapper `mdust_wasm.mjs`, the browser loader `mdust_wasm.web.mjs`, and the types in `index.d.ts`.
 - `bench/` holds the parity checks and the benchmark harness, and compares every output against markdown-it.
+- `tools/gen_tables.cjs` generates `crates/mdust/src/tables.rs`, the entity and Unicode punctuation tables.
+- `crates/mdust-napi` and `native/` build a native Node add-on, marked private in `native/package.json`.
 
 ## Build
 
