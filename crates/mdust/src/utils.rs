@@ -152,23 +152,63 @@ fn next_escape_swar(b: &[u8], mut i: usize) -> usize {
     i
 }
 
+/// Appends `s` to `out` with the capacity already reserved. Short runs are
+/// the common case and a bulk `memory.copy` costs a builtin call per run on
+/// wasm, so up to 32 bytes go through overlapping wide loads instead.
+#[inline(always)]
+pub fn push_reserved(out: &mut String, s: &[u8]) {
+    let v = unsafe { out.as_mut_vec() };
+    let n = s.len();
+    debug_assert!(v.capacity() - v.len() >= n);
+    unsafe {
+        let dst = v.as_mut_ptr().add(v.len());
+        let src = s.as_ptr();
+        if n > 32 {
+            core::ptr::copy_nonoverlapping(src, dst, n);
+        } else if n >= 16 {
+            let a = core::ptr::read_unaligned(src as *const u128);
+            let b = core::ptr::read_unaligned(src.add(n - 16) as *const u128);
+            core::ptr::write_unaligned(dst as *mut u128, a);
+            core::ptr::write_unaligned(dst.add(n - 16) as *mut u128, b);
+        } else if n >= 8 {
+            let a = core::ptr::read_unaligned(src as *const u64);
+            let b = core::ptr::read_unaligned(src.add(n - 8) as *const u64);
+            core::ptr::write_unaligned(dst as *mut u64, a);
+            core::ptr::write_unaligned(dst.add(n - 8) as *mut u64, b);
+        } else if n >= 4 {
+            let a = core::ptr::read_unaligned(src as *const u32);
+            let b = core::ptr::read_unaligned(src.add(n - 4) as *const u32);
+            core::ptr::write_unaligned(dst as *mut u32, a);
+            core::ptr::write_unaligned(dst.add(n - 4) as *mut u32, b);
+        } else {
+            for k in 0..n {
+                *dst.add(k) = *src.add(k);
+            }
+        }
+        v.set_len(v.len() + n);
+    }
+}
+
 pub fn escape_html_into(out: &mut String, s: &str) {
     let b = s.as_bytes();
+    out.reserve(b.len());
     let mut last = 0;
     let mut i = next_escape(b, 0);
     while i < b.len() {
-        let rep = match b[i] {
-            b'&' => "&amp;",
-            b'<' => "&lt;",
-            b'>' => "&gt;",
-            _ => "&quot;",
+        let rep: &[u8] = match b[i] {
+            b'&' => b"&amp;",
+            b'<' => b"&lt;",
+            b'>' => b"&gt;",
+            _ => b"&quot;",
         };
-        out.push_str(&s[last..i]);
-        out.push_str(rep);
+        // The byte reserved for the escaped char is one short of the replacement.
+        out.reserve(b.len() - last + 5);
+        push_reserved(out, &b[last..i]);
+        push_reserved(out, rep);
         last = i + 1;
         i = next_escape(b, last);
     }
-    out.push_str(&s[last..]);
+    push_reserved(out, &b[last..]);
 }
 
 pub fn lookup_entity(name: &str) -> Option<&'static str> {
