@@ -44,10 +44,35 @@ Vite and webpack 5 copy the wasm file into your build. The [package README](npm/
 
 ## Speed
 
-<picture>
-	<source media="(prefers-color-scheme: dark)" srcset="docs/bench-dark.svg">
-	<img src="docs/bench-light.svg" width="700" alt="Bar chart of geometric mean speedups over markdown-it. On the headline set, markdown-wasm 6.06x, markdown-it.rs wasm 1.61x, mdust-rs 10.14x, mdust native 15.09x. On the holdout set, 5.95x, 1.55x, 9.85x, 13.87x. On the heavy set, 5.39x, 1.48x, 9.67x, 14.16x.">
-</picture>
+<!-- chart:start -->
+```text
+Speedup over markdown-it, geometric mean, higher is faster
+2026-10-19, Intel Core i7-14700KF, Linux, Node 26.8.2
+
+headline  5 corpora used for tuning
+  markdown-it          |---  1.00x
+  markdown-wasm        |---------------  6.06x
+  markdown-it.rs wasm  |----  1.61x
+  mdust-rs             |######################### 10.14x
+  mdust native         |++++++++++++++++++++++++++++++++++++++ 15.09x
+
+holdout  6 corpora never used for tuning
+  markdown-it          |---  1.00x
+  markdown-wasm        |---------------  5.95x
+  markdown-it.rs wasm  |----  1.55x
+  mdust-rs             |#########################  9.85x
+  mdust native         |+++++++++++++++++++++++++++++++++++ 13.87x
+
+heavy  10 large corpora, 125.8 MiB in all
+  markdown-it          |---  1.00x
+  markdown-wasm        |-------------  5.39x
+  markdown-it.rs wasm  |----  1.48x
+  mdust-rs             |########################  9.67x
+  mdust native         |+++++++++++++++++++++++++++++++++++ 14.16x
+
+# mdust-rs, this package    + mdust native, not in the npm package
+```
+<!-- chart:end -->
 
 Each cell is a geometric mean of markdown-it's time divided by the renderer's time. Higher is faster.
 
@@ -65,7 +90,7 @@ Each cell is a geometric mean of markdown-it's time divided by the renderer's ti
 
 mdust native is the same crate built for x86-64 with profile-guided optimization. It is not in the npm package.
 
-Measured on 2026-10-19 on an Intel Core i7-14700KF, Linux, Node 26.8.2, with `RUNS=7 CPU=10 node run.mjs` in `bench/`, and with `CORPORA` set to the heavy corpora for that set. Each per-corpus time is the median of 7 runs pinned to one core. Per-corpus results for all 21 corpora are in the [package README](npm/README.md#benchmarks). `node bench/chart.mjs` redraws the chart from `bench/results.json`.
+Measured on 2026-10-19 on an Intel Core i7-14700KF, Linux, Node 26.8.2, with `RUNS=7 CPU=10 node run.mjs` in `bench/`, and with `CORPORA` set to the heavy corpora for that set. Each per-corpus time is the median of 7 runs pinned to one core. Per-corpus results for all 21 corpora are in the [package README](npm/README.md#benchmarks). `node bench/chart.mjs` redraws the chart in this file from `bench/results.json`.
 
 ## Same output as markdown-it
 
@@ -109,7 +134,6 @@ The [package README](npm/README.md#what-is-inside) has the design notes.
 - `tools/gen_tables.cjs` generates `crates/mdust/src/tables.rs`, the entity and Unicode punctuation tables.
 - `crates/mdust-napi` and `native/` build a native Node add-on, marked private in `native/package.json`.
 - `logo/` holds three logo concepts as SVG.
-- `docs/` holds the benchmark chart that `bench/chart.mjs` writes.
 
 **Build.** You need a Rust toolchain with the `wasm32-unknown-unknown` target, and Node with npm.
 
