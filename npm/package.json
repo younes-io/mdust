@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "CommonMark to HTML in WebAssembly, byte-identical to markdown-it 15.0.3",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/younes-io/mdust.git",
+    "directory": "npm"
+  },
+  "homepage": "https://github.com/younes-io/mdust#readme",
+  "bugs": {
+    "url": "https://github.com/younes-io/mdust/issues"
+  },
   "keywords": ["markdown", "commonmark", "markdown-it", "wasm"],
   "main": "./mdust_wasm.js",
   "module": "./mdust_wasm.web.mjs",
