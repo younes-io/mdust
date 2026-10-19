@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/mdust", "crates/mdust-wasm"]
+members = ["crates/mdust", "crates/mdust-wasm", "crates/mdust-napi"]
 exclude = ["bench"]
 
 [profile.release]

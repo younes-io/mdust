@@ -6,3 +6,5 @@
 /.tools/
 /npm/mdust_wasm_bg.wasm
 /npm/*.tgz
+/native/node_modules
+/native/*.node

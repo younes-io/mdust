@@ -1,0 +1,16 @@
+[package]
+name = "mdust-napi"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+mdust = { path = "../mdust" }
+napi = { version = "2.16", default-features = false }
+napi-derive = "2.16"
+
+[build-dependencies]
+napi-build = "2.1"

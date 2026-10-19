@@ -1,0 +1,19 @@
+{
+  "name": "mdust-native",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CommonMark to HTML as a native Node add-on, byte-identical to the mdust wasm package",
+  "license": "MIT",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "files": ["index.js", "index.d.ts", "mdust-native.node"],
+  "napi": {
+    "name": "mdust-native"
+  },
+  "scripts": {
+    "build": "napi build --release --cargo-cwd ../crates/mdust-napi --dts index.d.ts --no-dts-header ."
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "2.18.4"
+  }
+}
