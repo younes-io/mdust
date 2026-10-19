@@ -21,7 +21,7 @@ You need a Rust toolchain with the `wasm32-unknown-unknown` target, and Node wit
 	npm --prefix npm run build
 	```
 
-2. To make the npm tarball, run `npm pack` in `npm/`. It writes `npm/mdust-rs-0.1.0.tgz`.
+2. To make the npm tarball, run `npm pack` in `npm/`. It writes `npm/mdust-rs-0.1.1.tgz`.
 
 The build output, `npm/mdust_wasm_bg.wasm` and the tarball, is not committed.
 
