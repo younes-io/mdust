@@ -126,7 +126,7 @@ Measured on 2026-10-19 on an Intel Core i7-14700KF, Linux, Node 26.8.2, with `RU
 ## Same bytes
 
 ```text
-40,919 documents   652 spec examples   23 corpora   0 diffs
+40,919 cases       652 spec examples   23 corpora   0 diffs
 ```
 
 The target is the string that `new MarkdownIt('default', { html: true }).render(src)` returns with markdown-it 15.0.3, and the parity check compared every output with `===` on 2026-10-19. On the 61 spec examples where markdown-it departs from the spec, mdust follows markdown-it.
