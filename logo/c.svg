@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 172 32" fill="currentColor" role="img" aria-label="mdust">
+  <path d="M0 10h4v4h-4zM4 10h4v4h-4zM8 10h4v4h-4zM12 10h4v4h-4zM0 14h4v4h-4zM8 14h4v4h-4zM16 14h4v4h-4zM0 18h4v4h-4zM8 18h4v4h-4zM16 18h4v4h-4zM0 22h4v4h-4zM8 22h4v4h-4zM16 22h4v4h-4zM0 26h4v4h-4zM8 26h4v4h-4zM16 26h4v4h-4zM40 2h4v4h-4zM40 6h4v4h-4zM28 10h4v4h-4zM32 10h4v4h-4zM36 10h4v4h-4zM40 10h4v4h-4zM24 14h4v4h-4zM40 14h4v4h-4zM24 18h4v4h-4zM40 18h4v4h-4zM24 22h4v4h-4zM40 22h4v4h-4zM28 26h4v4h-4zM32 26h4v4h-4zM36 26h4v4h-4zM40 26h4v4h-4zM48 10h4v4h-4zM64 10h4v4h-4zM48 14h4v4h-4zM64 14h4v4h-4zM48 18h4v4h-4zM64 18h4v4h-4zM48 22h4v4h-4zM60 22h4v4h-4zM64 22h4v4h-4zM52 26h4v4h-4zM56 26h4v4h-4zM64 26h4v4h-4zM76 10h4v4h-4zM80 10h4v4h-4zM84 10h4v4h-4zM88 10h4v4h-4zM72 14h4v4h-4zM76 18h4v4h-4zM80 18h4v4h-4zM84 18h4v4h-4zM88 22h4v4h-4zM72 26h4v4h-4zM76 26h4v4h-4zM80 26h4v4h-4zM84 26h4v4h-4zM100 2h4v4h-4zM100 6h4v4h-4zM96 10h4v4h-4zM100 10h4v4h-4zM100 14h4v4h-4zM100 18h4v4h-4zM100 22h4v4h-4z"/>
+  <rect x="105" y="10" width="3.5" height="3.5" opacity="0.85"/>
+  <rect x="111" y="11" width="3" height="3" opacity="0.7"/>
+  <rect x="106" y="26" width="3.5" height="3.5" opacity="0.85"/>
+  <rect x="112" y="23" width="3" height="3" opacity="0.7"/>
+  <rect x="126" y="11" width="2.5" height="2.5" opacity="0.55"/>
+  <rect x="127" y="24" width="2.5" height="2.5" opacity="0.55"/>
+  <rect x="134" y="9" width="2" height="2" opacity="0.45"/>
+  <rect x="136" y="27" width="2" height="2" opacity="0.45"/>
+  <rect x="143" y="13" width="2" height="2" opacity="0.35"/>
+  <rect x="145" y="23" width="2" height="2" opacity="0.35"/>
+  <rect x="153" y="10" width="1.5" height="1.5" opacity="0.25"/>
+  <rect x="156" y="26" width="1.5" height="1.5" opacity="0.25"/>
+  <rect x="163" y="15" width="1.5" height="1.5" opacity="0.18"/>
+  <rect x="167" y="21" width="1.5" height="1.5" opacity="0.15"/>
+</svg>
