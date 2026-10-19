@@ -1449,8 +1449,50 @@ fn escaped_split(s: &str) -> Vec<alloc::borrow::Cow<'_, str>> {
 }
 
 /// Position of the first newline in `s`, and whether a CR or NUL was seen
-/// on the way (through the end of the word holding that newline).
+/// on the way (through the end of the chunk holding that newline). The flag
+/// only decides whether the source gets normalized and reparsed, so seeing
+/// a CR past the newline is harmless.
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 fn find_newline(s: &[u8]) -> (Option<usize>, bool) {
+    use core::arch::wasm32::*;
+    let n = s.len();
+    if n < 16 {
+        return find_newline_swar(s);
+    }
+    let p = s.as_ptr();
+    let (nl, cr, nul) = (u8x16_splat(b'\n'), u8x16_splat(b'\r'), u8x16_splat(0));
+    let mut dirty = u8x16_splat(0);
+    let mut i = 0;
+    while i + 16 <= n {
+        // Callers keep i + 16 <= n, so the load stays inside s.
+        let v = unsafe { v128_load(p.add(i) as *const v128) };
+        dirty = v128_or(dirty, v128_or(u8x16_eq(v, cr), u8x16_eq(v, nul)));
+        let m = u8x16_bitmask(u8x16_eq(v, nl));
+        if m != 0 {
+            return (Some(i + m.trailing_zeros() as usize), v128_any_true(dirty));
+        }
+        i += 16;
+    }
+    if i < n {
+        // Overlapping tail: reload the last 16 bytes and drop the bits already scanned.
+        let off = n - 16;
+        let v = unsafe { v128_load(p.add(off) as *const v128) };
+        dirty = v128_or(dirty, v128_or(u8x16_eq(v, cr), u8x16_eq(v, nul)));
+        let m = (u8x16_bitmask(u8x16_eq(v, nl)) as u32) >> (i - off);
+        if m != 0 {
+            return (Some(i + m.trailing_zeros() as usize), v128_any_true(dirty));
+        }
+    }
+    (None, v128_any_true(dirty))
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+#[inline]
+fn find_newline(s: &[u8]) -> (Option<usize>, bool) {
+    find_newline_swar(s)
+}
+
+fn find_newline_swar(s: &[u8]) -> (Option<usize>, bool) {
     const LO: u64 = 0x0101_0101_0101_0101;
     const HI: u64 = 0x8080_8080_8080_8080;
     const NL: u64 = LO * b'\n' as u64;
