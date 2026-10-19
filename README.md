@@ -20,7 +20,7 @@ Speed is judged on five headline corpora, listed in `bench/run.mjs` as rust-book
 
 ## How it got fast
 
-Each row is a commit on main, timed against markdown-it in Node with `bench/run.mjs`, pinned to one core, median of 7 alternating runs.
+Each row is the state of main at that commit, timed against markdown-it in Node with `bench/run.mjs`, pinned to one core, median of 7 alternating runs.
 
 ```text
 770f7db  2026-10-18  bench only, no parser           markdown-wasm 5.1x on rust-book
