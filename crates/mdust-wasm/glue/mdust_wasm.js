@@ -24,3 +24,4 @@ function render(src) {
 }
 
 module.exports.render = render;
+module.exports.__wasm = wasm;

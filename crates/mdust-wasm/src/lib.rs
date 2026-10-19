@@ -12,8 +12,11 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 }
 
 #[cfg(target_arch = "wasm32")]
+mod bump;
+
+#[cfg(target_arch = "wasm32")]
 #[global_allocator]
-static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
+static ALLOC: bump::Bump = bump::Bump;
 
 // The JS glue writes UTF-8 into INPUT and reads the result out of OUTPUT.
 // Both live across calls so a steady stream of renders does not malloc per
@@ -25,11 +28,13 @@ static mut OUTPUT: String = String::new();
 #[no_mangle]
 pub extern "C" fn mdust_in(cap: usize) -> *mut u8 {
     let input = unsafe { &mut *core::ptr::addr_of_mut!(INPUT) };
-    // A huge document should not pin its buffer for every later small one.
-    if input.capacity() > 4 * cap + (1 << 20) {
-        *input = Vec::new();
-    }
-    input.clear();
+    let output = unsafe { &mut *core::ptr::addr_of_mut!(OUTPUT) };
+    // The previous output has been read by now; everything restarts at the
+    // arena base, so no render leaves anything behind.
+    *output = String::new();
+    *input = Vec::new();
+    #[cfg(target_arch = "wasm32")]
+    bump::reset();
     input.reserve(cap);
     input.as_mut_ptr()
 }
