@@ -6,7 +6,7 @@ mdust is a Markdown to HTML renderer written in Rust and compiled to WebAssembly
 
 - `crates/mdust` is the parser and renderer, a `no_std` Rust library.
 - `crates/mdust-wasm` exports `mdust::render` to WebAssembly through two buffers that the JS loaders read and write.
-- `npm/` is the `mdust` npm package. It holds the Node loader `mdust_wasm.js`, its ES module wrapper `mdust_wasm.mjs`, the browser loader `mdust_wasm.web.mjs`, and the types in `index.d.ts`.
+- `npm/` is the `mdust-rs` npm package. npm refused the bare name mdust as too close to an existing package. It holds the Node loader `mdust_wasm.js`, its ES module wrapper `mdust_wasm.mjs`, the browser loader `mdust_wasm.web.mjs`, and the types in `index.d.ts`.
 - `bench/` holds the parity checks and the benchmark harness, and compares every output against markdown-it.
 
 ## Build
@@ -19,7 +19,7 @@ You need a Rust toolchain with the `wasm32-unknown-unknown` target, and Node wit
 	npm --prefix npm run build
 	```
 
-2. To make the npm tarball, run `npm pack` in `npm/`. It writes `npm/mdust-0.1.0.tgz`.
+2. To make the npm tarball, run `npm pack` in `npm/`. It writes `npm/mdust-rs-0.1.0.tgz`.
 
 The build output, `npm/mdust_wasm_bg.wasm` and the tarball, is not committed.
 

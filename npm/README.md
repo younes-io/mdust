@@ -5,7 +5,7 @@ mdust renders Markdown to HTML in WebAssembly. Its output is byte-identical to [
 ## Install
 
 ```sh
-npm install mdust
+npm install mdust-rs
 ```
 
 The package has no dependencies. It contains one wasm file of about 180 kB and three small loaders. The tarball is about 80 kB.
@@ -17,7 +17,7 @@ The Node entry loads the wasm module synchronously on import. You can call `rend
 CommonJS:
 
 ```js
-const { render } = require('mdust');
+const { render } = require('mdust-rs');
 
 render('# hi'); // '<h1>hi</h1>\n'
 ```
@@ -25,7 +25,7 @@ render('# hi'); // '<h1>hi</h1>\n'
 ES modules:
 
 ```js
-import { render } from 'mdust';
+import { render } from 'mdust-rs';
 
 render('# hi'); // '<h1>hi</h1>\n'
 ```
@@ -38,7 +38,7 @@ With no argument, `init` fetches `mdust_wasm_bg.wasm` from the directory of `mdu
 
 ```html
 <script type="module">
-	import { init, render } from './node_modules/mdust/mdust_wasm.web.mjs';
+	import { init, render } from './node_modules/mdust-rs/mdust_wasm.web.mjs';
 
 	await init();
 	document.body.innerHTML = render('# hi');
@@ -53,7 +53,7 @@ await init(new URL('/assets/mdust_wasm_bg.wasm', import.meta.url));
 
 `init` also accepts a `Response`, a promise of a `Response`, a compiled `WebAssembly.Module`, or the wasm bytes as an `ArrayBuffer` or typed array. If the server sends the file with `Content-Type: application/wasm`, `init` compiles it while it downloads. Otherwise it downloads the whole file first.
 
-Bundlers pick the browser entry through the `browser` and `default` export conditions. A bundler that rewrites `new URL('file', import.meta.url)`, such as Vite or webpack 5, copies the wasm file into the build output by itself. With other bundlers, copy `mdust/mdust_wasm_bg.wasm` into your static assets and pass its URL to `init`. The bundler setups in this paragraph are not tested in this repository.
+Bundlers pick the browser entry through the `browser` and `default` export conditions. A bundler that rewrites `new URL('file', import.meta.url)`, such as Vite or webpack 5, copies the wasm file into the build output by itself. With other bundlers, copy `mdust-rs/mdust_wasm_bg.wasm` into your static assets and pass its URL to `init`. The bundler setups in this paragraph are not tested in this repository.
 
 ## Parity with markdown-it
 

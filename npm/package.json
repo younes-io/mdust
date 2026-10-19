@@ -1,5 +1,5 @@
 {
-  "name": "mdust",
+  "name": "mdust-rs",
   "version": "0.1.0",
   "description": "CommonMark to HTML in WebAssembly, byte-identical to markdown-it 15.0.3",
   "license": "MIT",
