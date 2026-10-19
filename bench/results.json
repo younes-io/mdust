@@ -1,0 +1,51 @@
+{
+	"date": "2026-10-19",
+	"machine": "Intel Core i7-14700KF, Linux",
+	"node": "26.8.2",
+	"command": "RUNS=7 CPU=10 node run.mjs in bench/, with CORPORA set to the ten heavy corpora for the heavy set",
+	"baseline": "markdown-it",
+	"renderers": [
+		"markdown-wasm",
+		"markdown-it.rs wasm",
+		"mdust-rs",
+		"mdust native"
+	],
+	"sets": {
+		"headline": {
+			"corpora": {
+				"rust-book": [5.2, 1.39, 8.4, 13.12],
+				"node-api": [4.99, 1.36, 8.84, 13.02],
+				"mdn-js": [5.49, 1.51, 9.78, 14.51],
+				"k8s-concepts": [6.03, 1.49, 9.77, 13.96],
+				"awesome": [9.48, 2.54, 15.08, 22.64]
+			},
+			"geomean": [6.06, 1.61, 10.14, 15.09]
+		},
+		"holdout": {
+			"corpora": {
+				"github-docs": [6.46, 1.46, 10.88, 15.93],
+				"vue-docs": [5.05, 1.52, 9.27, 12.49],
+				"rust-rfcs": [5.56, 1.47, 9.35, 13.39],
+				"tldr": [6.61, 1.59, 9.66, 12.62],
+				"electron-docs": [5.58, 1.52, 9.28, 13.27],
+				"obsidian-help": [6.61, 1.73, 10.84, 15.95]
+			},
+			"geomean": [5.95, 1.55, 9.85, 13.87]
+		},
+		"heavy": {
+			"corpora": {
+				"github-docs-full": [6.37, 1.5, 10.68, 15.85],
+				"mdn-web": [5.65, 1.48, 10.1, 14.73],
+				"k8s-docs": [4.65, 1.35, 9.25, 13.37],
+				"vscode-docs": [6.09, 1.58, 9.97, 14.4],
+				"docker-docs": [6.12, 1.65, 10.4, 15.07],
+				"fcc-curriculum": [4.29, 1.36, 9.25, 13.53],
+				"eips": [5.81, 1.57, 10.08, 14.76],
+				"react-dev": [4.41, 1.47, 8.34, 12.2],
+				"ydkjs": [5.35, 1.49, 9.88, 14.86],
+				"hugo-docs": [5.63, 1.4, 8.98, 13.22]
+			},
+			"geomean": [5.39, 1.48, 9.67, 14.16]
+		}
+	}
+}

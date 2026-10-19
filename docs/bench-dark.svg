@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 636" width="700" height="636" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" role="img" aria-label="Speedup over markdown-it, geometric mean, higher is faster">
+<title>Speedup over markdown-it, geometric mean, higher is faster</title>
+<text x="16" y="28" fill="#f0f6fc" font-size="15" font-weight="700">Speedup over markdown-it, geometric mean, higher is faster</text>
+<text x="16" y="50" fill="#9198a1" font-size="12">2026-10-19, Intel Core i7-14700KF, Linux, Node 26.8.2</text>
+<line x1="184" y1="102" x2="184" y2="236" stroke="#3d444d" stroke-width="1"/>
+<text x="16" y="92"><tspan fill="#f0f6fc" font-size="14" font-weight="700">headline</tspan><tspan dx="10" fill="#9198a1" font-size="12">5 corpora used for tuning</tspan></text>
+<text x="172" y="120" fill="#9198a1" font-size="13" text-anchor="end">markdown-it</text>
+<rect x="184" y="106" width="29.4" height="20" rx="3" fill="#656c76"/>
+<text x="219.4" y="120" fill="#9198a1" font-size="13">1.00x</text>
+<text x="172" y="146" fill="#9198a1" font-size="13" text-anchor="end">markdown-wasm</text>
+<rect x="184" y="132" width="178.3" height="20" rx="3" fill="#656c76"/>
+<text x="368.3" y="146" fill="#9198a1" font-size="13">6.06x</text>
+<text x="172" y="172" fill="#9198a1" font-size="13" text-anchor="end">markdown-it.rs wasm</text>
+<rect x="184" y="158" width="47.4" height="20" rx="3" fill="#656c76"/>
+<text x="237.4" y="172" fill="#9198a1" font-size="13">1.61x</text>
+<text x="172" y="198" fill="#f0f6fc" font-size="13" text-anchor="end" font-weight="700">mdust-rs</text>
+<rect x="184" y="184" width="298.3" height="20" rx="3" fill="#4493f8"/>
+<text x="488.3" y="198" fill="#f0f6fc" font-size="13" font-weight="700">10.14x</text>
+<text x="172" y="224" fill="#f0f6fc" font-size="13" text-anchor="end" font-weight="700">mdust native</text>
+<rect x="184" y="210" width="443.9" height="20" rx="3" fill="#ab7df8"/>
+<text x="633.9" y="224" fill="#f0f6fc" font-size="13" font-weight="700">15.09x</text>
+<line x1="184" y1="280" x2="184" y2="414" stroke="#3d444d" stroke-width="1"/>
+<text x="16" y="270"><tspan fill="#f0f6fc" font-size="14" font-weight="700">holdout</tspan><tspan dx="10" fill="#9198a1" font-size="12">6 corpora never used for tuning</tspan></text>
+<text x="172" y="298" fill="#9198a1" font-size="13" text-anchor="end">markdown-it</text>
+<rect x="184" y="284" width="29.4" height="20" rx="3" fill="#656c76"/>
+<text x="219.4" y="298" fill="#9198a1" font-size="13">1.00x</text>
+<text x="172" y="324" fill="#9198a1" font-size="13" text-anchor="end">markdown-wasm</text>
+<rect x="184" y="310" width="175.0" height="20" rx="3" fill="#656c76"/>
+<text x="365.0" y="324" fill="#9198a1" font-size="13">5.95x</text>
+<text x="172" y="350" fill="#9198a1" font-size="13" text-anchor="end">markdown-it.rs wasm</text>
+<rect x="184" y="336" width="45.6" height="20" rx="3" fill="#656c76"/>
+<text x="235.6" y="350" fill="#9198a1" font-size="13">1.55x</text>
+<text x="172" y="376" fill="#f0f6fc" font-size="13" text-anchor="end" font-weight="700">mdust-rs</text>
+<rect x="184" y="362" width="289.8" height="20" rx="3" fill="#4493f8"/>
+<text x="479.8" y="376" fill="#f0f6fc" font-size="13" font-weight="700">9.85x</text>
+<text x="172" y="402" fill="#f0f6fc" font-size="13" text-anchor="end" font-weight="700">mdust native</text>
+<rect x="184" y="388" width="408.0" height="20" rx="3" fill="#ab7df8"/>
+<text x="598.0" y="402" fill="#f0f6fc" font-size="13" font-weight="700">13.87x</text>
+<line x1="184" y1="458" x2="184" y2="592" stroke="#3d444d" stroke-width="1"/>
+<text x="16" y="448"><tspan fill="#f0f6fc" font-size="14" font-weight="700">heavy</tspan><tspan dx="10" fill="#9198a1" font-size="12">10 large corpora, 125.8 MiB in all</tspan></text>
+<text x="172" y="476" fill="#9198a1" font-size="13" text-anchor="end">markdown-it</text>
+<rect x="184" y="462" width="29.4" height="20" rx="3" fill="#656c76"/>
+<text x="219.4" y="476" fill="#9198a1" font-size="13">1.00x</text>
+<text x="172" y="502" fill="#9198a1" font-size="13" text-anchor="end">markdown-wasm</text>
+<rect x="184" y="488" width="158.6" height="20" rx="3" fill="#656c76"/>
+<text x="348.6" y="502" fill="#9198a1" font-size="13">5.39x</text>
+<text x="172" y="528" fill="#9198a1" font-size="13" text-anchor="end">markdown-it.rs wasm</text>
+<rect x="184" y="514" width="43.5" height="20" rx="3" fill="#656c76"/>
+<text x="233.5" y="528" fill="#9198a1" font-size="13">1.48x</text>
+<text x="172" y="554" fill="#f0f6fc" font-size="13" text-anchor="end" font-weight="700">mdust-rs</text>
+<rect x="184" y="540" width="284.5" height="20" rx="3" fill="#4493f8"/>
+<text x="474.5" y="554" fill="#f0f6fc" font-size="13" font-weight="700">9.67x</text>
+<text x="172" y="580" fill="#f0f6fc" font-size="13" text-anchor="end" font-weight="700">mdust native</text>
+<rect x="184" y="566" width="416.6" height="20" rx="3" fill="#ab7df8"/>
+<text x="606.6" y="580" fill="#f0f6fc" font-size="13" font-weight="700">14.16x</text>
+<text x="16" y="622" fill="#9198a1" font-size="12">mdust native is an x86-64 build with profile-guided optimization, not in the npm package.</text>
+</svg>
