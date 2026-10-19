@@ -86,7 +86,7 @@ Each cell is a geometric mean of markdown-it's time divided by the renderer's ti
 | markdown-wasm 1.2.0 | 6.06x | 5.95x | 5.39x |
 | markdown-it.rs 0.6.1, wasm | 1.61x | 1.55x | 1.48x |
 | **mdust-rs**, npm | **10.14x** | **9.85x** | **9.67x** |
-| mdust native, from source | 15.09x | 13.87x | 14.16x |
+| **mdust native**, from source | **15.09x** | **13.87x** | **14.16x** |
 
 - **Headline** is the 5 corpora used to judge and tune speed, including the Rust book and the Node API docs.
 - **Holdout** is 6 corpora that were measured but never used for tuning. mdust-rs keeps 9.85x there, so the speed is not fitted to the headline set.
