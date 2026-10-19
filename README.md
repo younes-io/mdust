@@ -1,7 +1,7 @@
 <p align="center">
 <picture>
 	<source media="(prefers-color-scheme: dark)" srcset="logo/a-dark.svg">
-	<img src="logo/a.svg" width="160" alt="mdust logo">
+	<img src="logo/a.svg" width="140" alt="mdust logo">
 </picture>
 </p>
 
@@ -9,9 +9,24 @@
 
 <p align="center">The HTML markdown-it writes, byte for byte, about 10 times faster. Rust compiled to WebAssembly.</p>
 
-<p align="center"><a href="https://www.npmjs.com/package/mdust-rs"><img src="https://img.shields.io/npm/v/mdust-rs" alt="npm version of mdust-rs"></a></p>
-
 <p align="center"><em>An experiment. Can Claude Fable 5.1 port markdown-it to Rust, keep every byte, and go faster?</em></p>
+
+<p align="center">
+<a href="https://www.npmjs.com/package/mdust-rs"><img src="https://img.shields.io/npm/v/mdust-rs" alt="npm version of mdust-rs"></a>
+<a href="https://www.npmjs.com/package/mdust-rs"><img src="https://img.shields.io/npm/unpacked-size/mdust-rs" alt="unpacked size of mdust-rs on npm"></a>
+<a href="#license"><img src="https://img.shields.io/npm/l/mdust-rs" alt="license MIT"></a>
+<a href="https://github.com/younes-io/mdust/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/younes-io/mdust/ci.yml?branch=main&label=ci" alt="CI status"></a>
+</p>
+
+<p align="center">
+<a href="https://younes-io.github.io/mdust/"><b>Demo</b></a>
+&nbsp;·&nbsp;
+<a href="https://www.npmjs.com/package/mdust-rs">npm</a>
+&nbsp;·&nbsp;
+<a href="npm/README.md#benchmarks">Benchmarks</a>
+&nbsp;·&nbsp;
+<a href="npm/README.md#what-is-inside">How it works</a>
+</p>
 
 <!-- hero:start -->
 ```text
@@ -22,7 +37,28 @@
 ```
 <!-- hero:end -->
 
-## 🔁 Swap the call
+**All 11,005 pages of MDN Web Docs in 120 ms.** markdown-it takes 1.2 s for the same 40 MiB.
+
+**The react.dev docs in under 10 ms.** 225 pages, 3.9 MiB, and markdown-it needs 82 ms.
+
+**The freeCodeCamp curriculum, 9,000 pages, in 54 ms.** The fastest other wasm renderer, markdown-wasm, takes 116 ms.
+
+<sub>Medians of 3 runs on one core, 2026-10-19, Intel Core i7-14700KF, Node 26.8.2, `CORPORA=react-dev,mdn-web,fcc-curriculum RUNS=3 node bench/run.mjs`. Every page rendered one after the other, same bytes out as markdown-it.</sub>
+
+
+## Install
+
+```sh
+npm install mdust-rs
+pnpm add mdust-rs
+yarn add mdust-rs
+bun add mdust-rs
+deno add npm:mdust-rs
+```
+
+Each of these was installed and rendered on 2026-10-19. Deno blocks packages younger than a day by default, so a fresh release needs `--minimum-dependency-age 0` until it is older than that.
+
+## Swap the call
 
 If you call markdown-it with its `default` preset and `{ html: true }`, replace the call with `render` and every byte of your HTML stays the same.
 
@@ -51,17 +87,10 @@ render('# hi'); // '<h1>hi</h1>\n'
 </tr>
 </table>
 
-```sh
-npm install mdust-rs
-pnpm add mdust-rs
-yarn add mdust-rs
-bun add mdust-rs
-deno add npm:mdust-rs
-```
-
-Each of these was installed and rendered on 2026-10-19. Deno blocks packages younger than a day by default, so a fresh release needs `--minimum-dependency-age 0` until it is older than that.
-
 In Node, the module loads synchronously on import, so `render` works on the first line. CommonJS works too, as `const { render } = require('mdust-rs')`.
+
+<details>
+<summary>Use it in the browser</summary>
 
 In the browser, call `await init()` once before the first `render`. It fetches the wasm file from next to the loader.
 
@@ -75,6 +104,8 @@ In the browser, call `await init()` once before the first `render`. It fetches t
 ```
 
 Vite and webpack 5 copy the wasm file into your build. The [package README](npm/README.md#use-it-in-the-browser) covers other bundlers and every input `init` accepts.
+
+</details>
 
 ## ⚡ Speed
 
@@ -108,6 +139,11 @@ heavy  10 large corpora, 125.8 MiB in all
 ```
 <!-- chart:end -->
 
+Native is the same code as a Node add-on. It is not on npm. Build it from [native/](native/README.md).
+
+<details>
+<summary>All renderers and what each set holds</summary>
+
 Each cell is a geometric mean of markdown-it's time divided by the renderer's time. Higher is faster.
 
 | renderer | headline | holdout | heavy |
@@ -120,7 +156,7 @@ Each cell is a geometric mean of markdown-it's time divided by the renderer's ti
 
 The headline set is the 5 corpora used to judge and tune speed, including the Rust book and the Node API docs. The holdout set is 6 corpora that no tuning step ever used, and mdust-rs keeps 9.85x there, so the speed is not fitted to the headline set. The heavy set is 10 large corpora with 125.8 MiB of Markdown in all, such as MDN, the Kubernetes docs and the freeCodeCamp curriculum.
 
-Native is the same code as a Node add-on. It is not on npm. Build it from [native/](native/README.md).
+</details>
 
 <details>
 <summary>How it was measured</summary>
@@ -148,11 +184,11 @@ The target is the string that `new MarkdownIt('default', { html: true }).render(
 
 ## 🔬 Three tricks
 
-**SIMD scanning.** Scanners read 16 bytes per step to find line ends, the end of each run of text, and the bytes HTML escaping must replace.
-
-**Zero copy.** Text that needs no unescaping stays a slice of your input until the renderer writes it out.
-
-**Bump allocator.** Each render resets one allocator to the same base address instead of freeing objects one by one.
+| Trick | What it does |
+|---|---|
+| SIMD scanning | Scanners read 16 bytes per step to find line ends, the end of each run of text, and the bytes HTML escaping must replace. |
+| Zero copy | Text that needs no unescaping stays a slice of your input until the renderer writes it out. |
+| Bump allocator | Each render resets one allocator to the same base address instead of freeing objects one by one. |
 
 The [package README](npm/README.md#what-is-inside) has the design notes.
 
