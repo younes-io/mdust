@@ -8,3 +8,6 @@
 /npm/*.tgz
 /native/node_modules
 /native/*.node
+
+/site/mdust_wasm.web.mjs
+/site/mdust_wasm_bg.wasm

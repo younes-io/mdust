@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="the html markdown-it writes, byte for byte, about 10 times faster. rust compiled to webassembly.">
+<title>mdust</title>
+<link rel="stylesheet" href="./style.css">
+<script type="module" src="./app.js"></script>
+</head>
+<body>
+<header class="what">
+  <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 64" fill="currentColor" aria-hidden="true">
+    <g transform="skewX(-14) translate(14 0)">
+      <rect x="12" y="4" width="8" height="56"/>
+      <rect x="32" y="4" width="8" height="56"/>
+      <rect x="2" y="18" width="48" height="8"/>
+      <rect x="2" y="38" width="48" height="8"/>
+    </g>
+    <rect x="54" y="18" width="8" height="8"/>
+    <rect x="66" y="19" width="6" height="6" opacity=".85"/>
+    <rect x="77" y="17" width="5" height="5" opacity=".7"/>
+    <rect x="88" y="22" width="4" height="4" opacity=".55"/>
+    <rect x="99" y="19" width="3" height="3" opacity=".4"/>
+    <rect x="110" y="23" width="2" height="2" opacity=".3"/>
+    <rect x="120" y="20" width="2" height="2" opacity=".2"/>
+    <rect x="49" y="38" width="8" height="8"/>
+    <rect x="61" y="39" width="6" height="6" opacity=".85"/>
+    <rect x="71" y="42" width="5" height="5" opacity=".7"/>
+    <rect x="82" y="37" width="4" height="4" opacity=".55"/>
+    <rect x="93" y="41" width="3" height="3" opacity=".4"/>
+    <rect x="104" y="38" width="2" height="2" opacity=".3"/>
+    <rect x="115" y="43" width="2" height="2" opacity=".2"/>
+    <rect x="60" y="30" width="3" height="3" opacity=".5"/>
+    <rect x="84" y="30" width="2" height="2" opacity=".3"/>
+  </svg>
+  <h1>mdust</h1>
+  <p class="tagline">the html markdown-it writes, byte for byte, about 10 times faster. rust compiled to webassembly.</p>
+  <p>a drop-in for markdown-it with the default preset and <code>html: true</code>.</p>
+  <p>you get one wasm file and one function, <code>render(src)</code>.</p>
+  <p>10.14x faster than markdown-it, as the geometric mean over the headline set, measured 2026-10-19.</p>
+  <p class="links"><a href="https://github.com/younes-io/mdust">source on github</a> <a href="https://www.npmjs.com/package/mdust-rs">mdust-rs on npm</a></p>
+</header>
+
+<main class="demo">
+  <div class="panes">
+    <section class="pane">
+      <label class="pane-head" for="src">markdown</label>
+      <textarea id="src" spellcheck="false" autocomplete="off"></textarea>
+    </section>
+    <section class="pane">
+      <div class="pane-head">
+        <span id="out-label">html</span>
+        <label class="toggle"><input type="checkbox" id="raw"> show raw html</label>
+      </div>
+      <div id="out" class="out" aria-labelledby="out-label" tabindex="0"></div>
+    </section>
+  </div>
+  <p id="status" class="status" aria-live="polite">loading the wasm module.</p>
+  <button type="button" id="big">load a big document</button>
+</main>
+
+<footer>mit license. an experiment by younes with claude fable 5.1. <a href="https://github.com/younes-io/mdust">github.com/younes-io/mdust</a></footer>
+</body>
+</html>

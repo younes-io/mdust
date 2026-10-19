@@ -1,0 +1,46 @@
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - site/**
+      - npm/mdust_wasm.web.mjs
+      - npm/mdust_wasm_bg.wasm
+      - npm/index.d.ts
+      - crates/**
+      - Cargo.toml
+      - Cargo.lock
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      # npm/mdust_wasm_bg.wasm is not committed, so build it here.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - run: npm --prefix npm run build
+      - run: cp npm/mdust_wasm.web.mjs npm/mdust_wasm_bg.wasm site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
