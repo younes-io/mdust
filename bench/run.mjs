@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
-import { corpora, HOLDOUT } from './corpora.mjs';
+import { corpora, HEAVY, HOLDOUT } from './corpora.mjs';
 
 const RUNS = Number(process.env.RUNS ?? 7);
 const MIN_MS = process.env.MIN_MS ?? '2000';
@@ -40,7 +40,7 @@ for (const corpus of selected) {
   }
 }
 
-for (const [label, set] of [['geomean', HEADLINE], ['holdout geomean', HOLDOUT]]) {
+for (const [label, set] of [['geomean', HEADLINE], ['holdout geomean', HOLDOUT], ['heavy geomean', HEAVY]]) {
   if (!set.every((c) => selected.includes(c))) continue;
   console.log(`\n${label} speedup vs markdown-it across ${set.join(', ')}`);
   for (const impl of impls) {

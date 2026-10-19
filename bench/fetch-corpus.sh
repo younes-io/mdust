@@ -29,6 +29,18 @@ sparse tldr tldr-pages/tldr 481978fcfbac2229ccfe0dca91ce2e7d67d34ebc '/pages/com
 sparse electron-docs electron/electron 40ebdcc38d51d225b95306ee5b0289bef994b734 '/docs/**/*.md'
 sparse obsidian-help obsidianmd/obsidian-help 08ef563f07b78dd589f19b1583d089c1e2d2377c '/en/**/*.md'
 
+# Heavy set: ten large, popular corpora, each whole unless noted. github-docs-full reuses the github-docs
+# clone above (same sha); corpora.mjs walks it without the 1200-file slice.
+sparse mdn-web mdn/content a1aa79c09717761fc72c20bac94bb9c430ed487a '/files/en-us/web/**/*.md' '!/files/en-us/web/javascript/reference/**'
+sparse k8s-docs kubernetes/website 3d8f3d7b579d7dfcef7b835fee8da2a37199012d '/content/en/docs/**/*.md'
+sparse vscode-docs microsoft/vscode-docs c391542bd563ee3a7fdf9591785b76e0dc5bf3b1 '/docs/**/*.md'
+sparse docker-docs docker/docs 94c881e6e7c35ff15681534ee0897ce6d76daac9 '/content/**/*.md'
+sparse fcc-curriculum freeCodeCamp/freeCodeCamp cb9571ccb21067d54728470915ef03cbdf8a96e3 '/curriculum/challenges/english/**/*.md'
+sparse eips ethereum/EIPs 41a838decba33325d01bd99b1cd6072c51214fac '/EIPS/*.md'
+sparse react-dev reactjs/react.dev 046f17d04295ba047bb5739026b4ac3110f17028 '/src/content/**/*.md'
+sparse ydkjs getify/You-Dont-Know-JS 044120ef55564939cd35f5ddaf3f6c0a45d7b02c '/**/*.md'
+sparse hugo-docs gohugoio/hugoDocs 883fd5ce8bb1b9ad9fc89fb893be085641b0551b '/content/en/**/*.md'
+
 raw() { curl -sfL "https://raw.githubusercontent.com/$1/$2/$3" -o "$4"; }
 if [ ! -d awesome ]; then
   mkdir -p awesome.tmp

@@ -25,9 +25,22 @@ export const corpora = {
   tldr: () => [...walk(join(root, 'tldr/pages/common')), ...walk(join(root, 'tldr/pages/linux'))],
   'electron-docs': () => walk(join(root, 'electron-docs/docs')),
   'obsidian-help': () => walk(join(root, 'obsidian-help/en')),
+  // Heavy set: whole trees of ten large, popular corpora. github-docs-full is the github-docs clone unsliced.
+  'github-docs-full': () => walk(join(root, 'github-docs/content')),
+  'mdn-web': () => walk(join(root, 'mdn-web/files/en-us/web')),
+  'k8s-docs': () => walk(join(root, 'k8s-docs/content/en/docs')),
+  'vscode-docs': () => walk(join(root, 'vscode-docs/docs')),
+  'docker-docs': () => walk(join(root, 'docker-docs/content')),
+  // fcc-curriculum is 53 MiB whole; the first 9000 sorted paths are 25 MiB.
+  'fcc-curriculum': () => walk(join(root, 'fcc-curriculum/curriculum/challenges/english')).slice(0, 9000),
+  eips: () => walk(join(root, 'eips/EIPS')),
+  'react-dev': () => walk(join(root, 'react-dev/src/content')),
+  ydkjs: () => walk(join(root, 'ydkjs')),
+  'hugo-docs': () => walk(join(root, 'hugo-docs/content/en')),
 };
 
 export const HOLDOUT = ['github-docs', 'vue-docs', 'rust-rfcs', 'tldr', 'electron-docs', 'obsidian-help'];
+export const HEAVY = ['github-docs-full', 'mdn-web', 'k8s-docs', 'vscode-docs', 'docker-docs', 'fcc-curriculum', 'eips', 'react-dev', 'ydkjs', 'hugo-docs'];
 
 export function loadCorpus(name) {
   return corpora[name]().map((path) => ({ path, src: readFileSync(path, 'utf8') }));
