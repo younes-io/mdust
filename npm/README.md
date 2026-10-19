@@ -1,6 +1,6 @@
 # mdust
 
-mdust renders Markdown to HTML in WebAssembly. Its output is byte-identical to [markdown-it](https://github.com/markdown-it/markdown-it) 15.0.3 with preset `default` and `{ html: true }`. On the corpora in the benchmark section, it is about 10 times faster than markdown-it in Node.
+mdust renders Markdown to HTML in WebAssembly. Its output is byte-identical to [markdown-it](https://github.com/markdown-it/markdown-it) 15.0.3 with preset `default` and `{ html: true }`. On the corpora in the benchmark section it is about 10 times faster than markdown-it in Node, measured on 2026-10-19 with `node run.mjs` in `bench/` of the mdust repository.
 
 ## Install
 
@@ -67,7 +67,7 @@ The reference is markdown-it 15.0.3. The repository checks parity on every docum
 
 ## Benchmarks
 
-All numbers below were measured on 2026-10-19 on one machine: an Intel Core i7-14700KF, Node 26.8.2, Linux, one pinned core. They come from `bench/run.mjs` in the mdust repository. Each number is the median of 7 alternating runs. Each run warms up for 1.5 s, then times full passes over the corpus for at least 2 s. Speedup is the markdown-it time divided by the other time. `mdust` in these tables is the wasm build in this package, called through the Node entry.
+All numbers below were measured on 2026-10-19 on one machine, an Intel Core i7-14700KF running Linux and Node 26.8.2, with each run pinned to one core. They come from `bench/run.mjs` in the mdust repository. Each number is the median of 7 alternating runs. Each run warms up for 1.5 s, then times full passes over the corpus for at least 2 s. Speedup is the markdown-it time divided by the other time. `mdust` in these tables is the wasm build in this package, called through the Node entry.
 
 Heavy corpora, measured with this command in `bench/`:
 
