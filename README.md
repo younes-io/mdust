@@ -22,7 +22,7 @@
 ```
 <!-- hero:end -->
 
-## Swap the call
+## 🔁 Swap the call
 
 If you call markdown-it with its `default` preset and `{ html: true }`, replace the call with `render` and every byte of your HTML stays the same.
 
@@ -53,7 +53,13 @@ render('# hi'); // '<h1>hi</h1>\n'
 
 ```sh
 npm install mdust-rs
+pnpm add mdust-rs
+yarn add mdust-rs
+bun add mdust-rs
+deno add npm:mdust-rs
 ```
+
+Each of these was installed and rendered on 2026-10-19. Deno blocks packages younger than a day by default, so a fresh release needs `--minimum-dependency-age 0` until it is older than that.
 
 In Node, the module loads synchronously on import, so `render` works on the first line. CommonJS works too, as `const { render } = require('mdust-rs')`.
 
@@ -70,7 +76,7 @@ In the browser, call `await init()` once before the first `render`. It fetches t
 
 Vite and webpack 5 copy the wasm file into your build. The [package README](npm/README.md#use-it-in-the-browser) covers other bundlers and every input `init` accepts.
 
-## Speed
+## ⚡ Speed
 
 <!-- chart:start -->
 ```text
@@ -123,7 +129,7 @@ Measured on 2026-10-19 on an Intel Core i7-14700KF, Linux, Node 26.8.2, with `RU
 
 </details>
 
-## Same bytes
+## 🧬 Same bytes
 
 ```text
 40,919 cases       652 spec examples   23 corpora   0 diffs
@@ -131,7 +137,7 @@ Measured on 2026-10-19 on an Intel Core i7-14700KF, Linux, Node 26.8.2, with `RU
 
 The target is the string that `new MarkdownIt('default', { html: true }).render(src)` returns with markdown-it 15.0.3, and the parity check compared every output with `===` on 2026-10-19. On the 61 spec examples where markdown-it departs from the spec, mdust follows markdown-it.
 
-## The trade
+## ⚖️ The trade
 
 | You get | You give up |
 |---|---|
@@ -140,7 +146,7 @@ The target is the string that `new MarkdownIt('default', { html: true }).render(
 | The same `render` in the browser after one `await init()`. | A panic throws a `WebAssembly.RuntimeError`. |
 | One function, `render(src)`. A string goes in and a string comes out. | No streaming, and wasm memory never shrinks after a large document. |
 
-## Three tricks
+## 🔬 Three tricks
 
 **SIMD scanning.** Scanners read 16 bytes per step to find line ends, the end of each run of text, and the bytes HTML escaping must replace.
 
