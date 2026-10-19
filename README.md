@@ -58,23 +58,23 @@ headline  5 corpora used for tuning
   markdown-wasm        |===============  6.06x
   markdown-it.rs wasm  |====  1.61x
   mdust-rs             |######################### 10.14x
-  mdust native         |++++++++++++++++++++++++++++++++++++++ 15.09x
+  mdust, native build  |++++++++++++++++++++++++++++++++++++++ 15.09x
 
 holdout  6 corpora never used for tuning
   markdown-it          |===  1.00x
   markdown-wasm        |===============  5.95x
   markdown-it.rs wasm  |====  1.55x
   mdust-rs             |#########################  9.85x
-  mdust native         |+++++++++++++++++++++++++++++++++++ 13.87x
+  mdust, native build  |+++++++++++++++++++++++++++++++++++ 13.87x
 
 heavy  10 large corpora, 125.8 MiB in all
   markdown-it          |===  1.00x
   markdown-wasm        |=============  5.39x
   markdown-it.rs wasm  |====  1.48x
   mdust-rs             |########################  9.67x
-  mdust native         |+++++++++++++++++++++++++++++++++++ 14.16x
+  mdust, native build  |+++++++++++++++++++++++++++++++++++ 14.16x
 
-# mdust-rs, this package    + mdust native, not in the npm package
+# mdust-rs, the wasm npm package    + mdust compiled natively, build from source
 ```
 <!-- chart:end -->
 
@@ -85,14 +85,14 @@ Each cell is a geometric mean of markdown-it's time divided by the renderer's ti
 | markdown-it 15.0.3 | 1.00x | 1.00x | 1.00x |
 | markdown-wasm 1.2.0 | 6.06x | 5.95x | 5.39x |
 | markdown-it.rs 0.6.1, wasm | 1.61x | 1.55x | 1.48x |
-| **mdust-rs, this package** | **10.14x** | **9.85x** | **9.67x** |
-| mdust native, x86-64 | 15.09x | 13.87x | 14.16x |
+| **mdust-rs, wasm, `npm install mdust-rs`** | **10.14x** | **9.85x** | **9.67x** |
+| mdust compiled natively, build from source | 15.09x | 13.87x | 14.16x |
 
 - **Headline** is the 5 corpora used to judge and tune speed, including the Rust book and the Node API docs.
 - **Holdout** is 6 corpora that were measured but never used for tuning. mdust-rs keeps 9.85x there, so the speed is not fitted to the headline set.
 - **Heavy** is 10 large corpora, 125.8 MiB of Markdown in all, such as MDN, the Kubernetes docs and the freeCodeCamp curriculum.
 
-mdust native is the same crate built for x86-64 with profile-guided optimization. It is not in the npm package.
+The native row is the same Rust code compiled to an x86-64 binary with profile-guided optimization. npm does not ship it. The [native add-on](native/README.md) in this repository builds it from source on your machine.
 
 Measured on 2026-10-19 on an Intel Core i7-14700KF, Linux, Node 26.8.2, with `RUNS=7 CPU=10 node run.mjs` in `bench/`, and with `CORPORA` set to the heavy corpora for that set. Each per-corpus time is the median of 7 runs pinned to one core. Per-corpus results for all 21 corpora are in the [package README](npm/README.md#benchmarks). `node bench/chart.mjs` redraws the chart in this file from `bench/results.json`.
 
