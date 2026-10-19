@@ -63,7 +63,7 @@ Bundlers pick the browser entry through the `browser` and `default` export condi
 new MarkdownIt('default', { html: true }).render(src)
 ```
 
-The oracle is markdown-it 15.0.3. The repository checks parity on every document of its benchmark corpora and on the CommonMark spec and markdown-it fixture suites. There is no option to change the output. If you need other markdown-it options or plugins, use markdown-it.
+The reference is markdown-it 15.0.3. The repository checks parity on every document of its benchmark corpora and on the CommonMark spec and markdown-it fixture suites. There is no option to change the output. If you need other markdown-it options or plugins, use markdown-it.
 
 ## Benchmarks
 

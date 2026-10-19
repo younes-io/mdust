@@ -7,7 +7,7 @@ mdust is a Markdown to HTML renderer written in Rust and compiled to WebAssembly
 - `crates/mdust` is the parser and renderer, a `no_std` Rust library.
 - `crates/mdust-wasm` exports `mdust::render` to WebAssembly through two buffers that the JS loaders read and write.
 - `npm/` is the `mdust` npm package: the Node loader `mdust_wasm.js`, its ES module wrapper `mdust_wasm.mjs`, the browser loader `mdust_wasm.web.mjs`, and the types in `index.d.ts`.
-- `bench/` holds the parity checks and the benchmark harness, with markdown-it as the oracle.
+- `bench/` holds the parity checks and the benchmark harness, and compares every output against markdown-it.
 
 ## Build
 
