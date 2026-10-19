@@ -3,7 +3,14 @@ use crate::prelude::*;
 
 use crate::block::{Blocks, Kind};
 use crate::inline::{IKind, Inline, Scratch};
-use crate::utils::{escape_html_into, push_uint, is_js_space, js_trim, unescape_all};
+use crate::utils::{escape_html_into, push_reserved, push_uint, is_js_space, js_trim, unescape_all};
+
+/// Tags are short, so the copy goes through wide loads rather than memory.copy.
+#[inline(always)]
+fn tag(out: &mut String, s: &str) {
+    out.reserve(s.len());
+    push_reserved(out, s.as_bytes());
+}
 
 pub fn render(blocks: &Blocks, out: &mut String) {
     let toks = &blocks.tokens;
@@ -12,23 +19,23 @@ pub fn render(blocks: &Blocks, out: &mut String) {
         match t.kind {
             Kind::Inline => scratch = render_inline(blocks.content(t), blocks, scratch, out),
             Kind::CodeBlock => {
-                out.push_str("<pre><code>");
+                tag(out, "<pre><code>");
                 escape_html_into(out, blocks.content(t));
-                out.push_str("</code></pre>\n");
+                tag(out, "</code></pre>\n");
             }
             Kind::Fence => {
                 let info = unescape_all(blocks.info(t));
                 let info = js_trim(&info);
                 if info.is_empty() {
-                    out.push_str("<pre><code>");
+                    tag(out, "<pre><code>");
                 } else {
                     let lang = info.split(is_js_space).next().unwrap_or("");
-                    out.push_str("<pre><code class=\"language-");
+                    tag(out, "<pre><code class=\"language-");
                     escape_html_into(out, lang);
-                    out.push_str("\">");
+                    tag(out, "\">");
                 }
                 escape_html_into(out, blocks.content(t));
-                out.push_str("</code></pre>\n");
+                tag(out, "</code></pre>\n");
             }
             Kind::HtmlBlock => out.push_str(blocks.content(t)),
             _ => {
@@ -50,12 +57,12 @@ pub fn render(blocks: &Blocks, out: &mut String) {
                     };
                 match t.kind {
                     Kind::OrderedListOpen(n) if n != 1 => {
-                        out.push_str("<ol start=\"");
+                        tag(out, "<ol start=\"");
                         push_uint(out, n as u64);
-                        out.push_str(if lf { "\">\n" } else { "\">" });
+                        tag(out, if lf { "\">\n" } else { "\">" });
                     }
                     Kind::ThOpen(a) | Kind::TdOpen(a) if a != 0 => {
-                        out.push_str(match (t.kind, a) {
+                        tag(out, match (t.kind, a) {
                             (Kind::ThOpen(_), 1) => "<th style=\"text-align:center\"",
                             (Kind::ThOpen(_), 2) => "<th style=\"text-align:right\"",
                             (Kind::ThOpen(_), _) => "<th style=\"text-align:left\"",
@@ -63,9 +70,9 @@ pub fn render(blocks: &Blocks, out: &mut String) {
                             (_, 2) => "<td style=\"text-align:right\"",
                             _ => "<td style=\"text-align:left\"",
                         });
-                        out.push_str(if lf { ">\n" } else { ">" });
+                        tag(out, if lf { ">\n" } else { ">" });
                     }
-                    k => out.push_str(k.html(lf)),
+                    k => tag(out, k.html(lf)),
                 }
             }
         }
@@ -78,41 +85,41 @@ fn render_inline(src: &str, blocks: &Blocks, scratch: Scratch, out: &mut String)
         match t.kind {
             IKind::Text | IKind::TextSpecial => escape_html_into(out, st.content(t)),
             IKind::Softbreak => out.push('\n'),
-            IKind::Hardbreak => out.push_str("<br>\n"),
+            IKind::Hardbreak => tag(out, "<br>\n"),
             IKind::CodeInline => {
-                out.push_str("<code>");
+                tag(out, "<code>");
                 escape_html_into(out, st.content(t));
-                out.push_str("</code>");
+                tag(out, "</code>");
             }
             IKind::HtmlInline => out.push_str(st.content(t)),
-            IKind::EmOpen => out.push_str("<em>"),
-            IKind::EmClose => out.push_str("</em>"),
-            IKind::StrongOpen => out.push_str("<strong>"),
-            IKind::StrongClose => out.push_str("</strong>"),
-            IKind::SOpen => out.push_str("<s>"),
-            IKind::SClose => out.push_str("</s>"),
+            IKind::EmOpen => tag(out, "<em>"),
+            IKind::EmClose => tag(out, "</em>"),
+            IKind::StrongOpen => tag(out, "<strong>"),
+            IKind::StrongClose => tag(out, "</strong>"),
+            IKind::SOpen => tag(out, "<s>"),
+            IKind::SClose => tag(out, "</s>"),
             IKind::LinkOpen => {
-                out.push_str("<a href=\"");
+                tag(out, "<a href=\"");
                 escape_html_into(out, st.content(t));
                 out.push('"');
                 let title = st.arena_str(t.t);
                 if !title.is_empty() {
-                    out.push_str(" title=\"");
+                    tag(out, " title=\"");
                     escape_html_into(out, title);
                     out.push('"');
                 }
                 out.push('>');
             }
-            IKind::LinkClose => out.push_str("</a>"),
+            IKind::LinkClose => tag(out, "</a>"),
             IKind::Image => {
-                out.push_str("<img src=\"");
+                tag(out, "<img src=\"");
                 escape_html_into(out, st.content(t));
-                out.push_str("\" alt=\"");
+                tag(out, "\" alt=\"");
                 escape_html_into(out, st.arena_str(t.alt1));
                 out.push('"');
                 let title = st.arena_str(t.t);
                 if !title.is_empty() {
-                    out.push_str(" title=\"");
+                    tag(out, " title=\"");
                     escape_html_into(out, title);
                     out.push('"');
                 }
