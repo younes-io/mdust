@@ -13,6 +13,10 @@
 
 mdust is for anyone who renders Markdown in Node or the browser and already uses markdown-it, or needs output that matches it. If you call markdown-it with its default preset and `{ html: true }`, swap the call and keep every byte of your HTML.
 
+## The experiment
+
+mdust began as a question. Could Claude Fable 5.1 port markdown-it to Rust, keep the output byte for byte, and make it faster? The rule was that the parity checker runs before every speed change and the output never moves. The answer, measured on 2026-10-19, is the chart below. The npm package is the wasm build of that port.
+
 ## Install and render
 
 ```sh
@@ -50,23 +54,23 @@ Speedup over markdown-it, geometric mean, higher is faster
 2026-10-19, Intel Core i7-14700KF, Linux, Node 26.8.2
 
 headline  5 corpora used for tuning
-  markdown-it          |---  1.00x
-  markdown-wasm        |---------------  6.06x
-  markdown-it.rs wasm  |----  1.61x
+  markdown-it          |===  1.00x
+  markdown-wasm        |===============  6.06x
+  markdown-it.rs wasm  |====  1.61x
   mdust-rs             |######################### 10.14x
   mdust native         |++++++++++++++++++++++++++++++++++++++ 15.09x
 
 holdout  6 corpora never used for tuning
-  markdown-it          |---  1.00x
-  markdown-wasm        |---------------  5.95x
-  markdown-it.rs wasm  |----  1.55x
+  markdown-it          |===  1.00x
+  markdown-wasm        |===============  5.95x
+  markdown-it.rs wasm  |====  1.55x
   mdust-rs             |#########################  9.85x
   mdust native         |+++++++++++++++++++++++++++++++++++ 13.87x
 
 heavy  10 large corpora, 125.8 MiB in all
-  markdown-it          |---  1.00x
-  markdown-wasm        |-------------  5.39x
-  markdown-it.rs wasm  |----  1.48x
+  markdown-it          |===  1.00x
+  markdown-wasm        |=============  5.39x
+  markdown-it.rs wasm  |====  1.48x
   mdust-rs             |########################  9.67x
   mdust native         |+++++++++++++++++++++++++++++++++++ 14.16x
 

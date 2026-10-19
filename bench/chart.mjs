@@ -9,7 +9,7 @@ const SET_NOTES = {
 	holdout: 'corpora never used for tuning',
 	heavy: 'large corpora, 125.8 MiB in all',
 };
-const GLYPH = ['-', '-', '-', '#', '+'];
+const GLYPH = ['=', '=', '=', '#', '+'];
 const COLS_PER_X = 2.5;
 
 const names = [results.baseline, ...results.renderers];
