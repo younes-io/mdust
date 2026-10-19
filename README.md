@@ -1,4 +1,9 @@
-<p align="center"><img src="logo/a.svg" width="160" alt="mdust logo"></p>
+<p align="center">
+<picture>
+	<source media="(prefers-color-scheme: dark)" srcset="logo/a-dark.svg">
+	<img src="logo/a.svg" width="160" alt="mdust logo">
+</picture>
+</p>
 
 <h1 align="center">mdust</h1>
 
