@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="dark light">
 <meta name="description" content="the html markdown-it writes, byte for byte, about 10 times faster. rust compiled to webassembly.">
 <title>mdust</title>
 <link rel="stylesheet" href="./style.css">
@@ -35,11 +35,13 @@
     <rect x="60" y="30" width="3" height="3" opacity=".5"/>
     <rect x="84" y="30" width="2" height="2" opacity=".3"/>
   </svg>
-  <h1>mdust</h1>
+  <h1><span class="prompt" aria-hidden="true">$ </span>mdust</h1>
   <p class="tagline">the html markdown-it writes, byte for byte, about 10 times faster. rust compiled to webassembly.</p>
-  <p>a drop-in for markdown-it with the default preset and <code>html: true</code>.</p>
-  <p>you get one wasm file and one function, <code>render(src)</code>.</p>
-  <p>10.14x faster than markdown-it, as the geometric mean over the headline set, measured 2026-10-19.</p>
+  <ul class="facts">
+    <li>a drop-in for markdown-it with the default preset and <code>html: true</code>.</li>
+    <li>you get one wasm file and one function, <code>render(src)</code>.</li>
+    <li>10.14x faster than markdown-it, as the geometric mean over the headline set, measured 2026-10-19.</li>
+  </ul>
   <p class="links"><a href="https://github.com/younes-io/mdust">source on github</a> <a href="https://www.npmjs.com/package/mdust-rs">mdust-rs on npm</a></p>
 </header>
 
@@ -58,7 +60,7 @@
     </section>
   </div>
   <p id="status" class="status" aria-live="polite">loading the wasm module.</p>
-  <button type="button" id="big">load a big document</button>
+  <button type="button" id="big"><span aria-hidden="true">[ </span>load a big document<span aria-hidden="true"> ]</span></button>
 </main>
 
 <footer>mit license. an experiment by <a href="https://younes.io">younes.io</a> with claude fable 5.1. <a href="https://github.com/younes-io/mdust">github.com/younes-io/mdust</a></footer>

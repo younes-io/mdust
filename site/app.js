@@ -45,7 +45,13 @@ function update() {
   show();
   const inBytes = encoder.encode(text).length;
   const outBytes = encoder.encode(html).length;
-  status.textContent = `input ${inBytes.toLocaleString('en')} bytes, output ${outBytes.toLocaleString('en')} bytes, render ${ms.toFixed(2)} ms. this is your browser's own wasm time for the last render, not the benchmark.`;
+  const time = document.createElement('span');
+  time.className = 'ms';
+  time.textContent = `${ms.toFixed(2)} ms`;
+  status.replaceChildren(
+    time,
+    ` render. input ${inBytes.toLocaleString('en')} bytes, output ${outBytes.toLocaleString('en')} bytes. this is your browser's own wasm time for the last render, not the benchmark.`,
+  );
 }
 
 function bigDocument() {
