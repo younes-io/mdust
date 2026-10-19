@@ -21,6 +21,14 @@ sparse node-api nodejs/node e463b487c69d1ef482a407d55410498164c0892c '/doc/api/*
 sparse mdn-js mdn/content a1aa79c09717761fc72c20bac94bb9c430ed487a '/files/en-us/web/javascript/reference/**'
 sparse k8s-concepts kubernetes/website 079a4d63f072a54c317689c957307aaa018cfe34 '/content/en/docs/concepts/**'
 
+# Holdouts: never used to tune. corpora.mjs takes the first N sorted paths of github-docs.
+sparse github-docs github/docs dae83f7d28f3b8e10015bd6b6d8b72267cedceca '/content/**/*.md'
+sparse vue-docs vuejs/docs 40aa88af0094f7bab4aaf786e55c748a6a251d88 '/src/**/*.md'
+sparse rust-rfcs rust-lang/rfcs d2705ad64ba47e812a2b6b19d6f613fb4c14c5e0 '/text/*.md'
+sparse tldr tldr-pages/tldr 481978fcfbac2229ccfe0dca91ce2e7d67d34ebc '/pages/common/*.md' '/pages/linux/*.md'
+sparse electron-docs electron/electron 40ebdcc38d51d225b95306ee5b0289bef994b734 '/docs/**/*.md'
+sparse obsidian-help obsidianmd/obsidian-help 08ef563f07b78dd589f19b1583d089c1e2d2377c '/en/**/*.md'
+
 raw() { curl -sfL "https://raw.githubusercontent.com/$1/$2/$3" -o "$4"; }
 if [ ! -d awesome ]; then
   mkdir -p awesome.tmp

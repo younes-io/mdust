@@ -18,7 +18,16 @@ export const corpora = {
   'mdn-js': () => walk(join(root, 'mdn-js/files/en-us/web/javascript/reference')),
   'k8s-concepts': () => walk(join(root, 'k8s-concepts/content/en/docs/concepts')),
   awesome: () => walk(join(root, 'awesome')),
+  // Holdouts: measured, never tuned against. github-docs is 20 MiB; the first 1200 sorted paths are 6.6 MiB.
+  'github-docs': () => walk(join(root, 'github-docs/content')).slice(0, 1200),
+  'vue-docs': () => walk(join(root, 'vue-docs/src')),
+  'rust-rfcs': () => walk(join(root, 'rust-rfcs/text')),
+  tldr: () => [...walk(join(root, 'tldr/pages/common')), ...walk(join(root, 'tldr/pages/linux'))],
+  'electron-docs': () => walk(join(root, 'electron-docs/docs')),
+  'obsidian-help': () => walk(join(root, 'obsidian-help/en')),
 };
+
+export const HOLDOUT = ['github-docs', 'vue-docs', 'rust-rfcs', 'tldr', 'electron-docs', 'obsidian-help'];
 
 export function loadCorpus(name) {
   return corpora[name]().map((path) => ({ path, src: readFileSync(path, 'utf8') }));

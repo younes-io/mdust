@@ -21,7 +21,9 @@ fn main() {
     }
     if let Some(dir) = std::env::var_os("DUMP") {
         for (p, d) in args[1..].iter().zip(&docs) {
-            let out = Path::new(&dir).join(p.trim_start_matches('/')).with_extension("md.html");
+            let mut out = Path::new(&dir).join(p.trim_start_matches('/')).into_os_string();
+            out.push(".html");
+            let out = Path::new(&out);
             std::fs::create_dir_all(out.parent().unwrap()).unwrap();
             std::fs::write(out, mdust::render(d)).unwrap();
         }

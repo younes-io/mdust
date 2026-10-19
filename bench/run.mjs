@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
-import { corpora } from './corpora.mjs';
+import { corpora, HOLDOUT } from './corpora.mjs';
 
 const RUNS = Number(process.env.RUNS ?? 7);
 const MIN_MS = process.env.MIN_MS ?? '2000';
 const CPU = process.env.CPU ?? '2';
+const selected = process.env.CORPORA ? process.env.CORPORA.split(',') : Object.keys(corpora);
 const impls = ['markdown-it', 'markdown-wasm', 'markdown-it-rs-wasm', 'markdown-it-rs-native', 'mdust', 'mdust-native'];
 const here = new URL('.', import.meta.url).pathname;
 // bench/pgo.sh writes the profile-guided binary; it wins over the plain release build when present.
@@ -22,7 +23,7 @@ const median = (xs) => [...xs].sort((a, b) => a - b)[xs.length >> 1];
 const HEADLINE = ['rust-book', 'node-api', 'mdn-js', 'k8s-concepts', 'awesome'];
 const speedups = Object.fromEntries(impls.map((i) => [i, {}]));
 
-for (const corpus of Object.keys(corpora)) {
+for (const corpus of selected) {
   const files = corpora[corpus]();
   const bytes = files.reduce((n, f) => n + statSync(f).size, 0);
   const samples = Object.fromEntries(impls.map((i) => [i, []]));
@@ -39,8 +40,11 @@ for (const corpus of Object.keys(corpora)) {
   }
 }
 
-console.log(`\ngeomean speedup vs markdown-it across ${HEADLINE.join(', ')}`);
-for (const impl of impls) {
-  const xs = HEADLINE.map((c) => speedups[impl][c]);
-  console.log(`  ${impl.padEnd(22)} ${Math.exp(xs.reduce((a, x) => a + Math.log(x), 0) / xs.length).toFixed(2)}x`);
+for (const [label, set] of [['geomean', HEADLINE], ['holdout geomean', HOLDOUT]]) {
+  if (!set.every((c) => selected.includes(c))) continue;
+  console.log(`\n${label} speedup vs markdown-it across ${set.join(', ')}`);
+  for (const impl of impls) {
+    const xs = set.map((c) => speedups[impl][c]);
+    console.log(`  ${impl.padEnd(22)} ${Math.exp(xs.reduce((a, x) => a + Math.log(x), 0) / xs.length).toFixed(2)}x`);
+  }
 }
