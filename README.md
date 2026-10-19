@@ -1,6 +1,6 @@
 # mdust
 
-mdust is a Markdown to HTML renderer written in Rust and compiled to WebAssembly. Its output is byte-identical to [markdown-it](https://github.com/markdown-it/markdown-it) 15.0.3 with preset `default` and `{ html: true }`, In Node it renders the benchmark corpora about 10 times faster than markdown-it, measured on 2026-10-19 with `node run.mjs` in `bench/`. For install and usage, read the [npm package README](npm/README.md).
+mdust is a Markdown to HTML renderer written in Rust and compiled to WebAssembly. Its output is byte-identical to [markdown-it](https://github.com/markdown-it/markdown-it) 15.0.3 with preset `default` and `{ html: true }`. In Node it renders the benchmark corpora about 10 times faster than markdown-it, measured on 2026-10-19 with `node run.mjs` in `bench/`. For install and usage, read the [npm package README](npm/README.md).
 
 ## Repository layout
 
