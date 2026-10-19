@@ -25,7 +25,7 @@ jobs:
         working-directory: npm
         run: |
           mkdir -p "$RUNNER_TEMP/packed"
-          tar -xzf mdust-*.tgz -C "$RUNNER_TEMP/packed"
+          tar -xzf *.tgz -C "$RUNNER_TEMP/packed"
           node -e '
             const { render } = require(process.argv[1]);
             const out = render("# hi");
