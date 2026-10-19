@@ -11,19 +11,35 @@
 
 <p align="center"><a href="https://www.npmjs.com/package/mdust-rs"><img src="https://img.shields.io/npm/v/mdust-rs" alt="npm version of mdust-rs"></a></p>
 
-mdust is for anyone who renders Markdown in Node or the browser and already uses markdown-it, or needs output that matches it. If you call markdown-it with its default preset and `{ html: true }`, swap the call and keep every byte of your HTML.
+<p align="center"><em>An experiment. Can Claude Fable 5.1 port markdown-it to Rust, keep every byte, and go faster?</em></p>
 
-## The experiment
+<!-- hero:start -->
+```text
+  markdown-it  |===  1.00x
+  mdust-rs     |######################### 10.14x
 
-mdust began as a question. Could Claude Fable 5.1 port markdown-it to Rust, keep the output byte for byte, and make it faster? The rule was that the parity checker runs before every speed change and the output never moves. The answer, measured on 2026-10-19, is the chart below. The npm package is the wasm build of that port.
+  headline set, geometric mean, 2026-10-19
+```
+<!-- hero:end -->
 
-## Install and render
+## Swap the call
 
-```sh
-npm install mdust-rs
+If you call markdown-it with its `default` preset and `{ html: true }`, replace the call with `render` and every byte of your HTML stays the same.
+
+<table>
+<tr><th>markdown-it</th><th>mdust-rs</th></tr>
+<tr>
+<td valign="top">
+
+```js
+import MarkdownIt from 'markdown-it';
+
+const md = new MarkdownIt('default', { html: true });
+md.render('# hi'); // '<h1>hi</h1>\n'
 ```
 
-In Node, the module loads synchronously on import, so `render` works on the first line.
+</td>
+<td valign="top">
 
 ```js
 import { render } from 'mdust-rs';
@@ -31,7 +47,15 @@ import { render } from 'mdust-rs';
 render('# hi'); // '<h1>hi</h1>\n'
 ```
 
-CommonJS works too, as `const { render } = require('mdust-rs')`.
+</td>
+</tr>
+</table>
+
+```sh
+npm install mdust-rs
+```
+
+In Node, the module loads synchronously on import, so `render` works on the first line. CommonJS works too, as `const { render } = require('mdust-rs')`.
 
 In the browser, call `await init()` once before the first `render`. It fetches the wasm file from next to the loader.
 
@@ -88,41 +112,41 @@ Each cell is a geometric mean of markdown-it's time divided by the renderer's ti
 | **mdust-rs**, npm | **10.14x** | **9.85x** | **9.67x** |
 | **mdust native**, from source | **15.09x** | **13.87x** | **14.16x** |
 
-- **Headline** is the 5 corpora used to judge and tune speed, including the Rust book and the Node API docs.
-- **Holdout** is 6 corpora that were measured but never used for tuning. mdust-rs keeps 9.85x there, so the speed is not fitted to the headline set.
-- **Heavy** is 10 large corpora, 125.8 MiB of Markdown in all, such as MDN, the Kubernetes docs and the freeCodeCamp curriculum.
+The headline set is the 5 corpora used to judge and tune speed, including the Rust book and the Node API docs. The holdout set is 6 corpora that no tuning step ever used, and mdust-rs keeps 9.85x there, so the speed is not fitted to the headline set. The heavy set is 10 large corpora with 125.8 MiB of Markdown in all, such as MDN, the Kubernetes docs and the freeCodeCamp curriculum.
 
-Native is the same code as a Node add-on. Not on npm. Build it from [native/](native/README.md).
+Native is the same code as a Node add-on. It is not on npm. Build it from [native/](native/README.md).
 
-Measured on 2026-10-19 on an Intel Core i7-14700KF, Linux, Node 26.8.2, with `RUNS=7 CPU=10 node run.mjs` in `bench/`, and with `CORPORA` set to the heavy corpora for that set. Each per-corpus time is the median of 7 runs pinned to one core. Per-corpus results for all 21 corpora are in the [package README](npm/README.md#benchmarks). `node bench/chart.mjs` redraws the chart in this file from `bench/results.json`.
+<details>
+<summary>How it was measured</summary>
 
-## Same output as markdown-it
+Measured on 2026-10-19 on an Intel Core i7-14700KF, Linux, Node 26.8.2, with `RUNS=7 CPU=10 node run.mjs` in `bench/`, and with `CORPORA` set to the heavy corpora for that set. Each per-corpus time is the median of 7 runs pinned to one core. Per-corpus results for all 21 corpora are in the [package README](npm/README.md#benchmarks). `node bench/chart.mjs` redraws both charts in this file from `bench/results.json`.
 
-The target is the string that `new MarkdownIt('default', { html: true }).render(src)` returns with markdown-it 15.0.3. On 2026-10-19, mdust matched it on 100% of 40,919 documents and fixture cases, compared with `===`. They include the 652 CommonMark spec examples, the markdown-it fixture files and every document of 23 corpora. On the 61 spec examples where markdown-it departs from the spec, mdust follows markdown-it. If you move from that markdown-it configuration to mdust, your HTML does not change.
+</details>
 
-## What you get
+## Same bytes
 
-- No runtime dependencies in the npm package.
-- One wasm file of 179,356 bytes and loaders of 77 to 1,675 bytes, with TypeScript types.
-- A synchronous `render` in Node, from both `import` and `require`.
-- The same `render` in the browser after one `await init()`.
-- One function to learn, `render(src)`, which takes a string and returns a string.
-- A native Node add-on in `crates/mdust-napi` that builds from this repository but is not published.
+```text
+40,919 documents   652 spec examples   23 corpora   0 diffs
+```
 
-## What you give up
+The target is the string that `new MarkdownIt('default', { html: true }).render(src)` returns with markdown-it 15.0.3, and the parity check compared every output with `===` on 2026-10-19. On the 61 spec examples where markdown-it departs from the spec, mdust follows markdown-it.
 
-- No options and no plugins. The output always matches markdown-it's `default` preset with `{ html: true }`. If you need other options, use markdown-it.
-- Raw HTML in the input passes through unchanged. Sanitize the output before you insert untrusted Markdown into a page.
-- A panic aborts the render, and `render` throws a `WebAssembly.RuntimeError`.
-- No streaming. Each call takes the whole document, and wasm memory never shrinks after a large one.
+## The trade
 
-## Under the hood
+| You get | You give up |
+|---|---|
+| One wasm file of 179,356 bytes and no runtime dependencies. | No options and no plugins. The output is always the `default` preset with `{ html: true }`. |
+| A synchronous `render` in Node, from `import` or `require`. | Raw HTML passes through unchanged. Sanitize untrusted input yourself. |
+| The same `render` in the browser after one `await init()`. | A panic throws a `WebAssembly.RuntimeError`. |
+| One function, `render(src)`. A string goes in and a string comes out. | No streaming, and wasm memory never shrinks after a large document. |
 
-- The parser is a `no_std` Rust crate with one dependency, `hashbrown`.
-- SIMD scanners read 16 bytes per step to find line ends, the end of each run of text, and the bytes HTML escaping must replace.
-- Text that needs no unescaping is never copied, and stays a slice of your input until the renderer writes it out.
-- In wasm, each render resets a bump allocator to the same base address instead of freeing objects one at a time.
-- The native build picks SSE2, SSSE3 or AVX2 at run time.
+## Three tricks
+
+**SIMD scanning.** Scanners read 16 bytes per step to find line ends, the end of each run of text, and the bytes HTML escaping must replace.
+
+**Zero copy.** Text that needs no unescaping stays a slice of your input until the renderer writes it out.
+
+**Bump allocator.** Each render resets one allocator to the same base address instead of freeing objects one by one.
 
 The [package README](npm/README.md#what-is-inside) has the design notes.
 
