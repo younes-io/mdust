@@ -27,7 +27,7 @@ for (const [set, data] of Object.entries(results.sets)) {
 		lines.push(`  ${names[i].padEnd(label)}  |${bar} ${value.toFixed(2).padStart(5)}x`);
 	});
 }
-lines.push('', '# mdust-rs, the wasm npm package    + mdust compiled natively, build from source');
+lines.push('', '# npm package    + build from source');
 
 const block = ['<!-- chart:start -->', '```text', ...lines, '```', '<!-- chart:end -->'].join('\n');
 const readme = readFileSync(README, 'utf8');

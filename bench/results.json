@@ -8,7 +8,7 @@
 		"markdown-wasm",
 		"markdown-it.rs wasm",
 		"mdust-rs",
-		"mdust, native build"
+		"mdust native"
 	],
 	"sets": {
 		"headline": {
